@@ -4,6 +4,7 @@ from threading import Thread
 
 # Constants
 main_dir = os.path.split(os.path.abspath(__file__))[0]
+TILE_WIDTH = 20
 
 # Asset loading functions..
 
@@ -51,6 +52,8 @@ class LoadingScreenHandler(Handler):
     # Print a black screen that says 'Loading'!
     Game.screen.blit(self.background, (0,0))
     pygame.display.flip()
+    # Pump the event queue so we don't get any nasty surprises after loading.
+    pygame.event.clear()
     return True
 
 ## Menu and Title Screen stuff
@@ -115,37 +118,58 @@ class TitleScreenHandler(Handler):
     return True
 
 ## Game stuff
+class RenderCamera(pygame.sprite.RenderPlain):
+  def draw(self, surface, camera):
+    for s, r in self.spritedict.items():
+      surface.blit(s.image, (s.x - camera.x, s.y - camera.y))
+
 
 class Player(pygame.sprite.Sprite):
+  # X and Y are in pixel world co-ordinates
   def __init__(self):
     super(Player, self).__init__()
     self.xvel = 0
     self.yvel = 0
+    self.x = 50
+    self.y = 50
     self.image = pygame.Surface((50,50))
     self.image.fill((0,200,0))
     self.rect = self.image.get_rect()
+    self.rect.topleft = (self.x, self.y)
+
+  def update(self, camera):
+    self.rect.topleft = (self.x - camera.x, self.y - camera.y)
+
+class Tile(pygame.sprite.Sprite):
+  # X and Y are in tile world co-ordinates
+  def __init__(self, x, y):
+    super(Tile, self).__init__()
+    self.x = x * TILE_WIDTH
+    self.y = y * TILE_WIDTH
+    self.image = pygame.Surface((TILE_WIDTH,TILE_WIDTH))
+    self.image.fill((0,0,200))
+    self.rect = self.image.get_rect()
+    self.rect.topleft = (self.x, self.y)
 
 class Camera(pygame.rect.Rect):
   def __init__(self, position):
     super(Camera, self).__init__(position)
-    self.xvel = 0
-    self.yvel = 0
 
 class GameScreenHandler(Handler):
   # The game proper, if you like. An instance of this is created for each level.
   # Contains instances for the platforms you can jump on, enemies, etc.
   # Pass in the level information and whatnot.
 
-  # Constants. Sorry, CONSTANTS!
-  TILE_WIDTH = 20
+  # Game constants!
+  GRAVITY = 10
 
   def __init__(self):
     # Vital level statistics: Height and width in tiles, and in
     # pixels, for the benefit of the camera and.. everything else.
     self.xtiles = 50
-    self.ytiles = 50
-    self.xpixels = self.xtiles * self.TILE_WIDTH
-    self.ypixels = self.ytiles * self.TILE_WIDTH
+    self.ytiles = 30
+    self.xpixels = self.xtiles * TILE_WIDTH
+    self.ypixels = self.ytiles * TILE_WIDTH
 
     # Background. Right now, doesn't move and is static.
     background = pygame.Surface(Game.screen.get_size())
@@ -160,6 +184,19 @@ class GameScreenHandler(Handler):
     # Player stuff.
     self.player = Player()
 
+    # Tile stuff
+    self.tiles = RenderCamera()
+    # Load level file's tiles here.
+    # Testing: Create a floor of tiles
+    for x in xrange(0, 50):
+      for y in xrange(25, 30):
+        self.tiles.add(Tile(y, y))
+
+    # Update loop stuff.
+    self.logicOn = True
+    self.inputOn = True
+    self.specialOn = False
+
     self.testSurface = pygame.Surface((100,100))
     self.testSurface = self.testSurface.convert()
     self.testSurface.fill((200,0,0))
@@ -167,8 +204,20 @@ class GameScreenHandler(Handler):
   def _draw(self):
     # Draw the background! Let's say it never scrolls, for now.
     Game.screen.blit(self.background, (0,0))
+
+    # Render each sprite using our special 'RenderCamera' groups.
+    # For now, call the individual position update functions and blit manually
+    self.player.update(self.camera)
+
+    # Testing
     Game.screen.blit(self.testSurface, (400 - self.camera.x, 300 - self.camera.y))
-    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
+#    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
+    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
+    self.tiles.draw(Game.screen, self.camera)
+    #for tile in self.tiles:
+    #  Game.screen.blit(tile.image, (tile.x - self.camera.x, tile.y - self.camera.y))
+
+    # Show our hard work!
     pygame.display.flip()
 
   def _handleKeyDown(self,event):
@@ -204,32 +253,41 @@ class GameScreenHandler(Handler):
   def _logic(self):
     # Handle damage and whatnot
     # Handle player movement
-    self.player.rect.x += self.player.xvel
-    self.player.rect.y += self.player.yvel
-    self.player.rect.x = max(0, self.player.rect.x)
-    self.player.rect.y = max(0, self.player.rect.y)
-    self.player.rect.x = min(self.player.rect.x, self.xpixels - self.player.rect.width)
-    self.player.rect.y = min(self.player.rect.y, self.ypixels - self.player.rect.height)
+    self.player.x += self.player.xvel
+    self.player.y += self.player.yvel
+    self.player.y += self.GRAVITY
+    self.player.x = max(0, self.player.x)
+    self.player.y = max(0, self.player.y)
+    self.player.x = min(self.player.x, self.xpixels - self.player.rect.width)
+    self.player.y = min(self.player.y, self.ypixels - self.player.rect.height)
+
     # Handle enemy movement
+
     # Adjust camera position
-    self.camera.x = self.player.rect.x + (self.player.rect.width / 2) - (Game.xres / 2)
-    self.camera.y = self.player.rect.y + (self.player.rect.height / 2) - (Game.yres / 2)
+    self.camera.x = (self.player.x + (self.player.rect.width / 2)) - (Game.xRes / 2)
+    self.camera.y = (self.player.y + (self.player.rect.height / 2)) - (Game.yRes / 2)
     self.camera.x = max(0, self.camera.x)
     self.camera.y = max(0, self.camera.y)
     self.camera.x = min(self.camera.x, self.xpixels - self.camera.width)
     self.camera.y = min(self.camera.y, self.ypixels - self.camera.height)
 
+    def _special(self):
+      pass
 
   def update(self):
     self._draw()
-    self._handleInput()
-    self._logic()
+    if self.inputOn:
+      self._handleInput()
+    if self.logicOn:
+      self._logic()
+    if self.specialOn:
+      self._special()
     return True
 
 class Game:
-  # Resolution..
-  xres = 800
-  yres = 600
+  # Resolution.
+  xRes = 800
+  yRes = 600
 
   # Contains variables that are consistant across all handlers,
   # and indeed the current handler.
@@ -252,7 +310,7 @@ def main():
   clock = pygame.time.Clock()
 
   # Get the PyGame variables in to Game.
-  Game.screen = pygame.display.set_mode((Game.xres,Game.yres))
+  Game.screen = pygame.display.set_mode((Game.xRes,Game.yRes))
   pygame.display.set_caption('Emond Knights')
 
   # Load the loading screen stuff, and set the handler.
