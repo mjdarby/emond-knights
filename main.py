@@ -117,7 +117,13 @@ class TitleScreenHandler(Handler):
 ## Game stuff
 
 class Player(pygame.sprite.Sprite):
-  pass
+  def __init__(self):
+    super(Player, self).__init__()
+    self.xvel = 0
+    self.yvel = 0
+    self.image = pygame.Surface((50,50))
+    self.image.fill((0,200,0))
+    self.rect = self.image.get_rect()
 
 class Camera(pygame.rect.Rect):
   def __init__(self, position):
@@ -150,38 +156,40 @@ class GameScreenHandler(Handler):
     # Camera stuff. In reality, camera will be centered on player, rather than 'moving'.
     # That is to say, no xvel or yvel.
     self.camera = Camera(Game.screen.get_rect())
-    self.camera.xvel = 0
-    self.camera.yvel = 0
 
-    self.playerSurface = pygame.Surface((100,100))
-    self.playerSurface = self.playerSurface.convert()
-    self.playerSurface.fill((200,0,0))
+    # Player stuff.
+    self.player = Player()
+
+    self.testSurface = pygame.Surface((100,100))
+    self.testSurface = self.testSurface.convert()
+    self.testSurface.fill((200,0,0))
 
   def _draw(self):
     # Draw the background! Let's say it never scrolls, for now.
     Game.screen.blit(self.background, (0,0))
-    Game.screen.blit(self.playerSurface, (400 - self.camera.x, 300 - self.camera.y))
+    Game.screen.blit(self.testSurface, (400 - self.camera.x, 300 - self.camera.y))
+    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
     pygame.display.flip()
 
   def _handleKeyDown(self,event):
     if event.key == K_UP:
-      self.camera.yvel += 1
+      self.player.yvel -= 5
     elif event.key == K_DOWN:
-      self.camera.yvel -= 1
+      self.player.yvel += 5
     elif event.key == K_LEFT:
-      self.camera.xvel -= 1
+      self.player.xvel -= 5
     elif event.key == K_RIGHT:
-      self.camera.xvel += 1
+      self.player.xvel += 5
 
   def _handleKeyUp(self, event):
     if event.key == K_UP:
-      self.camera.yvel -= 1
+      self.player.yvel += 5
     elif event.key == K_DOWN:
-      self.camera.yvel += 1
+      self.player.yvel -= 5
     elif event.key == K_LEFT:
-      self.camera.xvel += 1
+      self.player.xvel += 5
     elif event.key == K_RIGHT:
-      self.camera.xvel -= 1
+      self.player.xvel -= 5
 
   def _handleInput(self):
     for event in pygame.event.get():
@@ -196,10 +204,21 @@ class GameScreenHandler(Handler):
   def _logic(self):
     # Handle damage and whatnot
     # Handle player movement
-    self.camera.x += self.camera.xvel
-    self.camera.y += self.camera.yvel
+    self.player.rect.x += self.player.xvel
+    self.player.rect.y += self.player.yvel
+    self.player.rect.x = max(0, self.player.rect.x)
+    self.player.rect.y = max(0, self.player.rect.y)
+    self.player.rect.x = min(self.player.rect.x, self.xpixels - self.player.rect.width)
+    self.player.rect.y = min(self.player.rect.y, self.ypixels - self.player.rect.height)
     # Handle enemy movement
     # Adjust camera position
+    self.camera.x = self.player.rect.x + (self.player.rect.width / 2) - (Game.xres / 2)
+    self.camera.y = self.player.rect.y + (self.player.rect.height / 2) - (Game.yres / 2)
+    self.camera.x = max(0, self.camera.x)
+    self.camera.y = max(0, self.camera.y)
+    self.camera.x = min(self.camera.x, self.xpixels - self.camera.width)
+    self.camera.y = min(self.camera.y, self.ypixels - self.camera.height)
+
 
   def update(self):
     self._draw()
@@ -208,6 +227,10 @@ class GameScreenHandler(Handler):
     return True
 
 class Game:
+  # Resolution..
+  xres = 800
+  yres = 600
+
   # Contains variables that are consistant across all handlers,
   # and indeed the current handler.
   handler = Handler()
@@ -229,7 +252,7 @@ def main():
   clock = pygame.time.Clock()
 
   # Get the PyGame variables in to Game.
-  Game.screen = pygame.display.set_mode((800,600))
+  Game.screen = pygame.display.set_mode((Game.xres,Game.yres))
   pygame.display.set_caption('Emond Knights')
 
   # Load the loading screen stuff, and set the handler.
