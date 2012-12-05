@@ -63,8 +63,8 @@ class Button:
 def quitButtonFunction():
   Game.run = False
 
-def dummyButtonFunction():
-  pass
+def newButtonFunction():
+  Game.handler = GameScreenHandler()
 
 class TitleScreenHandler(Handler):
   def __init__(self, buttons):
@@ -80,7 +80,7 @@ class TitleScreenHandler(Handler):
     self.buttonHighlighted = 0
     self.buttonOffset = background.get_height() / 2
 
-  def update(self):
+  def _draw(self):
     # Draw the background..
     Game.screen.blit(self.background, (0,0))
     # Now draw the buttons
@@ -93,6 +93,9 @@ class TitleScreenHandler(Handler):
       textpos = text.get_rect(centerx=self.background.get_width()/2, centery=self.buttonOffset + idx * 60)
       Game.screen.blit(text, textpos)
     # Handle any button presses here: Navigating menu, quitting game, selecting things.
+    pygame.display.flip()
+
+  def _handleInput(self):
     for event in pygame.event.get():
         if event.type == QUIT or \
             (event.type == KEYDOWN and event.key == K_ESCAPE):
@@ -106,19 +109,103 @@ class TitleScreenHandler(Handler):
         elif event.type == KEYDOWN and event.key == K_RETURN:
           self.buttons[self.buttonHighlighted].function()
 
-    pygame.display.flip()
+  def update(self):
+    self._draw()
+    self._handleInput()
     return True
+
+## Game stuff
+
+class Player(pygame.sprite.Sprite):
+  pass
+
+class Camera(pygame.rect.Rect):
+  def __init__(self, position):
+    super(Camera, self).__init__(position)
+    self.xvel = 0
+    self.yvel = 0
 
 class GameScreenHandler(Handler):
   # The game proper, if you like. An instance of this is created for each level.
   # Contains instances for the platforms you can jump on, enemies, etc.
   # Pass in the level information and whatnot.
+
+  # Constants. Sorry, CONSTANTS!
+  TILE_WIDTH = 20
+
   def __init__(self):
-    pass  
+    # Vital level statistics: Height and width in tiles, and in
+    # pixels, for the benefit of the camera and.. everything else.
+    self.xtiles = 50
+    self.ytiles = 50
+    self.xpixels = self.xtiles * self.TILE_WIDTH
+    self.ypixels = self.ytiles * self.TILE_WIDTH
+
+    # Background. Right now, doesn't move and is static.
+    background = pygame.Surface(Game.screen.get_size())
+    background = background.convert()
+    background.fill((50,50,50))
+    self.background = background
+
+    # Camera stuff. In reality, camera will be centered on player, rather than 'moving'.
+    # That is to say, no xvel or yvel.
+    self.camera = Camera(Game.screen.get_rect())
+    self.camera.xvel = 0
+    self.camera.yvel = 0
+
+    self.playerSurface = pygame.Surface((100,100))
+    self.playerSurface = self.playerSurface.convert()
+    self.playerSurface.fill((200,0,0))
+
+  def _draw(self):
+    # Draw the background! Let's say it never scrolls, for now.
+    Game.screen.blit(self.background, (0,0))
+    Game.screen.blit(self.playerSurface, (400 - self.camera.x, 300 - self.camera.y))
+    pygame.display.flip()
+
+  def _handleKeyDown(self,event):
+    if event.key == K_UP:
+      self.camera.yvel += 1
+    elif event.key == K_DOWN:
+      self.camera.yvel -= 1
+    elif event.key == K_LEFT:
+      self.camera.xvel -= 1
+    elif event.key == K_RIGHT:
+      self.camera.xvel += 1
+
+  def _handleKeyUp(self, event):
+    if event.key == K_UP:
+      self.camera.yvel -= 1
+    elif event.key == K_DOWN:
+      self.camera.yvel += 1
+    elif event.key == K_LEFT:
+      self.camera.xvel += 1
+    elif event.key == K_RIGHT:
+      self.camera.xvel -= 1
+
+  def _handleInput(self):
+    for event in pygame.event.get():
+        if event.type == QUIT or \
+            (event.type == KEYDOWN and event.key == K_ESCAPE):
+                Game.run = False
+        elif event.type == KEYDOWN:
+          self._handleKeyDown(event)
+        elif event.type == KEYUP:
+          self._handleKeyUp(event)
+
+  def _logic(self):
+    # Handle damage and whatnot
+    # Handle player movement
+    self.camera.x += self.camera.xvel
+    self.camera.y += self.camera.yvel
+    # Handle enemy movement
+    # Adjust camera position
 
   def update(self):
-
-    pass
+    self._draw()
+    self._handleInput()
+    self._logic()
+    return True
 
 class Game:
   # Contains variables that are consistant across all handlers,
@@ -146,10 +233,10 @@ def main():
   pygame.display.set_caption('Emond Knights')
 
   # Load the loading screen stuff, and set the handler.
-  newGame = Button("New Game", dummyButtonFunction)
+  newGame = Button("New Game", newButtonFunction)
   exitGame = Button("Exit Game", quitButtonFunction)
-  #Game.handler = LoadingScreenHandler(dummyLoadingFunction, TitleScreenHandler([newGame, exitGame]))
-  
+  Game.handler = LoadingScreenHandler(dummyLoadingFunction, TitleScreenHandler([newGame, exitGame]))
+  #Game.handler = GameScreenHandler()
 
   blackground = pygame.Surface(Game.screen.get_size())
   blackground = blackground.convert()
