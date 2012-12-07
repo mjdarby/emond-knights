@@ -130,6 +130,9 @@ class Player(pygame.sprite.Sprite):
     super(Player, self).__init__()
     self.xvel = 0
     self.yvel = 0
+    self.xaccel = 0
+    self.yaccel = 0
+    self.OnGround = False
     self.image = pygame.Surface((40,60))
     self.image.fill((0,200,0))
     self.rect = self.image.get_rect()
@@ -148,6 +151,7 @@ class Tile(pygame.sprite.Sprite):
     self.image.fill((0,0,200))
     self.rect = self.image.get_rect()
     self.rect.topleft = (self.x, self.y)
+    self.friction = 0.5
 
 class Camera(pygame.rect.Rect):
   def __init__(self, position):
@@ -227,28 +231,44 @@ class GameScreenHandler(Handler):
     # Show our hard work!
     pygame.display.flip()
 
+  # def _handleKeyDown(self,event):
+  #   if event.key == K_UP:
+  #     self.player.yvel -= 5
+  #   elif event.key == K_DOWN:
+  #     self.player.yvel += 5
+  #   elif event.key == K_LEFT:
+  #     self.player.xvel -= 10
+  #   elif event.key == K_RIGHT:
+  #     self.player.xvel += 10
+  #   elif event.key == K_SPACE:
+  #     if self.player.onGround:
+  #       self.player.yvel = -10
+
+  # def _handleKeyUp(self, event):
+  #   if event.key == K_UP:
+  #     self.player.yvel += 5
+  #   elif event.key == K_DOWN:
+  #     self.player.yvel -= 5
+  #   elif event.key == K_LEFT:
+  #     self.player.xvel += 10
+  #   elif event.key == K_RIGHT:
+  #     self.player.xvel -= 10
+
   def _handleKeyDown(self,event):
-    if event.key == K_UP:
-      self.player.yvel -= 5
-    elif event.key == K_DOWN:
-      self.player.yvel += 5
-    elif event.key == K_LEFT:
-      self.player.xvel -= 5
+    if event.key == K_LEFT:
+      self.player.xaccel -= 1
     elif event.key == K_RIGHT:
-      self.player.xvel += 5
+      self.player.xaccel += 1
     elif event.key == K_SPACE:
       if self.player.onGround:
         self.player.yvel = -10
 
   def _handleKeyUp(self, event):
-    if event.key == K_UP:
-      self.player.yvel += 5
-    elif event.key == K_DOWN:
-      self.player.yvel -= 5
-    elif event.key == K_LEFT:
-      self.player.xvel += 5
+    if event.key == K_LEFT:
+      self.player.xaccel += 1
     elif event.key == K_RIGHT:
-      self.player.xvel -= 5
+      self.player.xaccel -= 1
+
 
   def _handleInput(self):
     for event in pygame.event.get():
@@ -312,6 +332,12 @@ class GameScreenHandler(Handler):
         if math.copysign(1, self.player.yvel) > 0:
           self.player.rect.bottom = tile.y - 1
           self.player.onGround = True
+          # Friction adjustments, if player is not moving
+          # Without the break, we might apply two frictions from two tiles. The break means only one will
+          # be applied. This might seem a little odd if the blocks have different frictions.
+          keys = pygame.key.get_pressed()
+          if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
+            self.player.xvel -= math.copysign(min(abs(self.player.xvel), tile.friction), self.player.xvel)
         else:
           self.player.rect.top = tile.y + TILE_WIDTH + 1
           self.player.yvel = 0
@@ -324,14 +350,13 @@ class GameScreenHandler(Handler):
   def _logic(self):
     # Handle damage and whatnot
     
-    # Handle player movement
-    # Movement by player.
-#    self.player.rect.x += self.player.xvel
-#    self.player.rect.y += self.player.yvel
     # Gravity gonna gravitate.
     self.player.yvel += self.GRAVITY
     # Cap gravity's effect so we don't fall through things.
     self.player.yvel = min(self.player.yvel,16)
+    # Movement by player.
+    self.player.xvel += self.player.xaccel
+    self.player.xvel = math.copysign(min(abs(self.player.xvel), 8),self.player.xvel)
     # Movement by colliding with a tile.
     # 
     # First, find the surrounding tiles we have to check against.
@@ -367,8 +392,8 @@ class GameScreenHandler(Handler):
     self.camera.x = min(self.camera.x, self.xpixels - self.camera.width)
     self.camera.y = min(self.camera.y, self.ypixels - self.camera.height)
 
-    def _special(self):
-      pass
+  def _special(self):
+    pass
 
   def update(self):
     self._draw()
