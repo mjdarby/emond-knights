@@ -1,4 +1,4 @@
-import pygame, os, sys, copy
+import pygame, os, sys, copy, math
 from pygame.locals import *
 from threading import Thread
 
@@ -121,7 +121,7 @@ class TitleScreenHandler(Handler):
 class RenderCamera(pygame.sprite.RenderPlain):
   def draw(self, surface, camera):
     for s, r in self.spritedict.items():
-      surface.blit(s.image, (s.x - camera.x, s.y - camera.y))
+      surface.blit(s.image, (s.rect.x - camera.x, s.rect.y - camera.y))
 
 
 class Player(pygame.sprite.Sprite):
@@ -130,15 +130,13 @@ class Player(pygame.sprite.Sprite):
     super(Player, self).__init__()
     self.xvel = 0
     self.yvel = 0
-    self.x = 50
-    self.y = 50
-    self.image = pygame.Surface((50,50))
+    self.image = pygame.Surface((40,60))
     self.image.fill((0,200,0))
     self.rect = self.image.get_rect()
-    self.rect.topleft = (self.x, self.y)
+    self.rect.topleft = (50, 50)
 
   def update(self, camera):
-    self.rect.topleft = (self.x - camera.x, self.y - camera.y)
+    pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
 
 class Tile(pygame.sprite.Sprite):
   # X and Y are in tile world co-ordinates
@@ -161,7 +159,7 @@ class GameScreenHandler(Handler):
   # Pass in the level information and whatnot.
 
   # Game constants!
-  GRAVITY = 10
+  GRAVITY = 0.5
 
   def __init__(self):
     # Vital level statistics: Height and width in tiles, and in
@@ -183,14 +181,22 @@ class GameScreenHandler(Handler):
 
     # Player stuff.
     self.player = Player()
+    self.playerRenderCamera = RenderCamera()
+    self.playerRenderCamera.add(self.player)
 
     # Tile stuff
-    self.tiles = RenderCamera()
+    self.tilesRenderCamera = RenderCamera()
+    self.tiles = dict()
     # Load level file's tiles here.
     # Testing: Create a floor of tiles
     for x in xrange(0, 50):
       for y in xrange(25, 30):
-        self.tiles.add(Tile(y, y))
+        self.tiles[(x,y)] = Tile(x,y)
+        self.tilesRenderCamera.add(self.tiles[(x,y)])
+
+    for x in xrange(20, 40):
+      self.tiles[(x,x)] = Tile(x,x)
+      self.tilesRenderCamera.add(self.tiles[(x,x)])      
 
     # Update loop stuff.
     self.logicOn = True
@@ -212,8 +218,9 @@ class GameScreenHandler(Handler):
     # Testing
     Game.screen.blit(self.testSurface, (400 - self.camera.x, 300 - self.camera.y))
 #    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
-    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
-    self.tiles.draw(Game.screen, self.camera)
+#    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
+    self.tilesRenderCamera.draw(Game.screen, self.camera)
+    self.playerRenderCamera.draw(Game.screen, self.camera)
     #for tile in self.tiles:
     #  Game.screen.blit(tile.image, (tile.x - self.camera.x, tile.y - self.camera.y))
 
@@ -229,6 +236,9 @@ class GameScreenHandler(Handler):
       self.player.xvel -= 5
     elif event.key == K_RIGHT:
       self.player.xvel += 5
+    elif event.key == K_SPACE:
+      if self.player.onGround:
+        self.player.yvel = -10
 
   def _handleKeyUp(self, event):
     if event.key == K_UP:
@@ -250,22 +260,108 @@ class GameScreenHandler(Handler):
         elif event.type == KEYUP:
           self._handleKeyUp(event)
 
+  def _logic_movement(self):
+    # X first..
+    player_rect = self.player.rect
+    x_collision = False
+    x_sensors = (player_rect.topleft,
+      ((player_rect.midleft[0] + player_rect.topleft[0]) / 2, (player_rect.midleft[1] + player_rect.topleft[1]) / 2),
+      player_rect.midleft,
+      player_rect.bottomleft, 
+      ((player_rect.midleft[0] + player_rect.bottomleft[0]) / 2, (player_rect.midleft[1] + player_rect.bottomleft[1]) / 2),
+      player_rect.topright,
+      ((player_rect.midright[0] + player_rect.topright[0]) / 2, (player_rect.midright[1] + player_rect.topright[1]) / 2),
+      player_rect.midright, 
+      ((player_rect.midright[0] + player_rect.bottomright[0]) / 2, (player_rect.midright[1] + player_rect.bottomright[1]) / 2),
+      player_rect.bottomright)
+    for sensor in x_sensors:    
+      current_x = sensor[0]
+      current_y = sensor[1]
+      current_x_tile = current_x // TILE_WIDTH
+      current_y_tile = current_y // TILE_WIDTH
+      target_x = max(0, current_x + self.player.xvel)
+      target_x = min(current_x + self.player.xvel, self.xpixels - self.player.rect.width)
+      target_x_tile = target_x // TILE_WIDTH
+      if (target_x_tile, current_y_tile) in self.tiles:
+        # We've collided with something!
+        tile = self.tiles[(target_x_tile, current_y_tile)]
+        if math.copysign(1, self.player.xvel) > 0:
+          self.player.rect.right = tile.x - 1
+        else:
+          self.player.rect.left = tile.x + TILE_WIDTH + 1
+        x_collision = True
+        break
+    if not x_collision:
+      self.player.rect.x += self.player.xvel
+
+    # Y movement
+    player_rect = self.player.rect
+    y_collision = False
+    y_sensors = (player_rect.topleft, player_rect.midtop, player_rect.topright, player_rect.bottomleft, player_rect.midbottom, player_rect.bottomright)
+    for sensor in y_sensors:    
+      current_x, current_y = sensor
+      current_x_tile = current_x // TILE_WIDTH
+      current_y_tile = current_y // TILE_WIDTH
+      target_y = current_y + self.player.yvel
+      target_y = max(0, current_y + self.player.yvel)
+      target_y = min(current_y + self.player.yvel, self.ypixels - self.player.rect.height)
+      target_y_tile = target_y // TILE_WIDTH
+      if (current_x_tile, target_y_tile) in self.tiles:
+        # We've collided with something!
+        tile = self.tiles[(current_x_tile, target_y_tile)]
+        if math.copysign(1, self.player.yvel) > 0:
+          self.player.rect.bottom = tile.y - 1
+          self.player.onGround = True
+        else:
+          self.player.rect.top = tile.y + TILE_WIDTH + 1
+          self.player.yvel = 0
+        y_collision = True
+        break
+    if not y_collision:
+      self.player.rect.y += self.player.yvel
+      self.player.onGround = False
+
   def _logic(self):
     # Handle damage and whatnot
+    
     # Handle player movement
-    self.player.x += self.player.xvel
-    self.player.y += self.player.yvel
-    self.player.y += self.GRAVITY
-    self.player.x = max(0, self.player.x)
-    self.player.y = max(0, self.player.y)
-    self.player.x = min(self.player.x, self.xpixels - self.player.rect.width)
-    self.player.y = min(self.player.y, self.ypixels - self.player.rect.height)
+    # Movement by player.
+#    self.player.rect.x += self.player.xvel
+#    self.player.rect.y += self.player.yvel
+    # Gravity gonna gravitate.
+    self.player.yvel += self.GRAVITY
+    # Cap gravity's effect so we don't fall through things.
+    self.player.yvel = min(self.player.yvel,16)
+    # Movement by colliding with a tile.
+    # 
+    # First, find the surrounding tiles we have to check against.
+#    topleftTile = (int(math.floor(self.player.rect.x / TILE_WIDTH) - 1), int(math.floor(self.player.rect.y / TILE_WIDTH) - 1)) 
+#    bottomrightTile = (int(math.ceil((self.player.rect.x + self.player.rect.width) / TILE_WIDTH) + 1), int(math.ceil((self.player.rect.y + self.player.rect.height) / TILE_WIDTH) + 1))
+    # Check against them?!
+#    for x in xrange(topleftTile[0], bottomrightTile[0]):
+#      for y in xrange(topleftTile[1], bottomrightTile[1]):
+#        if (x, y) in self.tiles and pygame.sprite.collide_rect(self.player, self.tiles[(x,y)]):
+#          print("Collision:")
+#          print((x,y))
+          # Figure out the amount of dislocation required to put the player back in the right place.
+    self._logic_movement()
+    # Make sure the player isn't flying off the screen!
+
+    self.player.rect.x = max(0, self.player.rect.x)
+    self.player.rect.y = max(0, self.player.rect.y)
+    self.player.rect.x = min(self.player.rect.x, self.xpixels - self.player.rect.width)
+    self.player.rect.y = min(self.player.rect.y, self.ypixels - self.player.rect.height)
+
+
+    #print(topleftTile)
+    #print(bottomrightTile)
+
 
     # Handle enemy movement
 
     # Adjust camera position
-    self.camera.x = (self.player.x + (self.player.rect.width / 2)) - (Game.xRes / 2)
-    self.camera.y = (self.player.y + (self.player.rect.height / 2)) - (Game.yRes / 2)
+    self.camera.x = (self.player.rect.x + (self.player.rect.width / 2)) - (Game.xRes / 2)
+    self.camera.y = (self.player.rect.y + (self.player.rect.height / 2)) - (Game.yRes / 2)
     self.camera.x = max(0, self.camera.x)
     self.camera.y = max(0, self.camera.y)
     self.camera.x = min(self.camera.x, self.xpixels - self.camera.width)
