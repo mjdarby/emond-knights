@@ -5,6 +5,12 @@ from threading import Thread
 # Constants
 main_dir = os.path.split(os.path.abspath(__file__))[0]
 TILE_WIDTH = 20
+X_ACCEL = 0.5
+PERFECT_AIR_CONTROL = False # Disables or enables impulse jumping.
+GRAVITY = 0.4
+JUMP = -10
+FPS = 60
+
 
 # Asset loading functions..
 
@@ -123,23 +129,154 @@ class RenderCamera(pygame.sprite.RenderPlain):
     for s, r in self.spritedict.items():
       surface.blit(s.image, (s.rect.x - camera.x, s.rect.y - camera.y))
 
-
-class Player(pygame.sprite.Sprite):
-  # X and Y are in pixel world co-ordinates
+class Entity(pygame.sprite.Sprite):
   def __init__(self):
-    super(Player, self).__init__()
+    super(Entity, self).__init__()
     self.xvel = 0
     self.yvel = 0
     self.xaccel = 0
     self.yaccel = 0
-    self.OnGround = False
+    self.onGround = False
     self.image = pygame.Surface((40,60))
     self.image.fill((0,200,0))
     self.rect = self.image.get_rect()
     self.rect.topleft = (50, 50)
 
-  def update(self, camera):
+  def _logic_movement(self, tiles, limits):
+    # Gravity gonna gravitate.
+    self.yvel += GRAVITY
+
+    # Cap speeds, so we don't fly through things!
+    self.xvel = math.copysign(min(abs(self.xvel), 8),self.xvel)
+    self.yvel = min(self.yvel,16)
+
+    # X first..
+    rect = self.rect
+    x_collision = False
+    x_sensors = (rect.topleft,
+      ((rect.midleft[0] + rect.topleft[0]) / 2, (rect.midleft[1] + rect.topleft[1]) / 2),
+      rect.midleft,
+      rect.bottomleft, 
+      ((rect.midleft[0] + rect.bottomleft[0]) / 2, (rect.midleft[1] + rect.bottomleft[1]) / 2),
+      rect.topright,
+      ((rect.midright[0] + rect.topright[0]) / 2, (rect.midright[1] + rect.topright[1]) / 2),
+      rect.midright, 
+      ((rect.midright[0] + rect.bottomright[0]) / 2, (rect.midright[1] + rect.bottomright[1]) / 2),
+      rect.bottomright)
+    for sensor in x_sensors:    
+      current_x = sensor[0]
+      current_y = sensor[1]
+      current_x_tile = current_x // TILE_WIDTH
+      current_y_tile = current_y // TILE_WIDTH
+      # We don't need these, I took "Reasoning about Programming" at university,
+      # and provided you can't move more pixels in one frame than there are in
+      # a tile, it's all good.
+      ##target_x = max(0, current_x + self.xvel)
+      ##target_x = min(current_x + self.xvel, self.xpixels - self.rect.width)
+      target_x = current_x + self.xvel
+      target_x_tile = target_x // TILE_WIDTH
+      if (target_x_tile, current_y_tile) in tiles:
+        # We've collided with something!
+        tile = tiles[(target_x_tile, current_y_tile)]
+        if math.copysign(1, self.xvel) > 0:
+          self.rect.right = tile.x - 1
+        else:
+          self.rect.left = tile.x + TILE_WIDTH + 1
+        x_collision = True
+        break
+    if not x_collision:
+      self.rect.x += self.xvel
+    else:
+      self.xvel = 0
+
+    # Y movement
+    rect = self.rect
+    y_collision = False
+    y_sensors = (rect.topleft, rect.midtop, rect.topright, rect.bottomleft, rect.midbottom, rect.bottomright)
+    for sensor in y_sensors:    
+      current_x, current_y = sensor
+      current_x_tile = current_x // TILE_WIDTH
+      current_y_tile = current_y // TILE_WIDTH
+      #target_y = max(0, current_y + self.xvel)
+      #target_y = min(current_y + self.xvel, self.ypixels - self.rect.height)
+      target_y = current_y + self.yvel
+      target_y_tile = target_y // TILE_WIDTH
+      if (current_x_tile, target_y_tile) in tiles:
+        # We've collided with something!
+        tile = tiles[(current_x_tile, target_y_tile)]
+        if math.copysign(1, self.yvel) > 0:
+          self.rect.bottom = tile.y - 1
+          self.onGround = True
+          self.jumping = False
+          # Friction adjustments, only for the the player if they are not moving
+          # Without the break, we might apply two frictions from two tiles. The break means only one will
+          # be applied. This might seem a little odd if the blocks have different frictions.
+          if self.__class__.__name__ == "Player":
+            keys = pygame.key.get_pressed()
+            if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
+              self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
+        else:
+          self.rect.top = tile.y + TILE_WIDTH + 1
+          self.yvel = 0
+        y_collision = True
+        break
+    if not y_collision:
+      self.rect.y += self.yvel
+      if self.yvel > 0 and self.yvel < 4 and self.xvel > 0.125:
+        self.xvel *= 0.96
+      if PERFECT_AIR_CONTROL:
+        self.xvel = 0
+      self.onGround = False
+
+    # Make sure we're not flying off the screen!
+    rect.x = max(0, rect.x)
+    rect.y = max(0, rect.y)
+    rect.x = min(rect.x, limits[0] - rect.width)
+    rect.y = min(rect.y, limits[1] - rect.height)
+
+  def update(self, tiles, limits):
     pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
+
+
+class Player(Entity):
+  # X and Y are in pixel world co-ordinates
+  def __init__(self):
+    super(Player, self).__init__()
+    self.jumping = False
+
+  def update(self, tiles, limits):
+    self.xvel += self.xaccel
+    self._logic_movement(tiles, limits)
+
+class Enemy(Entity):
+  def __init__(self):
+    super(Enemy, self).__init__()
+    self.image = pygame.Surface((40,40))
+    self.image.fill((200,200,0))
+    self.rect = self.image.get_rect()
+    self.rect.topleft = (100, 100)
+
+  def update(self, tiles, limits):
+    print "hello"
+    pass
+
+class Shazbot(Enemy):
+  def __init__(self):
+    super(Shazbot, self).__init__()
+    self.moveLeft = True
+    self.timer = 0
+
+  def update(self, tiles, limits):
+    if self.timer == FPS*0.5:
+      self.moveLeft = not self.moveLeft
+      self.timer = 0
+    if self.moveLeft:
+      self.xvel = -5
+    else:
+      self.xvel = 5
+    self.timer += 1
+
+    self._logic_movement(tiles, limits)
 
 class Tile(pygame.sprite.Sprite):
   # X and Y are in tile world co-ordinates
@@ -188,6 +325,18 @@ class GameScreenHandler(Handler):
     self.playerRenderCamera = RenderCamera()
     self.playerRenderCamera.add(self.player)
 
+    # Enemy stuff.
+    self.enemy = Shazbot()
+    self.enemyRenderCamera = RenderCamera()
+    self.enemyRenderCamera.add(self.enemy)
+    a = Shazbot()
+    a.rect.x = 200
+    b = Shazbot()
+    b.rect.x = 300
+    c = Shazbot()
+    c.rect.x = 400
+    self.enemyRenderCamera.add((a,b,c))
+
     # Tile stuff
     self.tilesRenderCamera = RenderCamera()
     self.tiles = dict()
@@ -215,59 +364,35 @@ class GameScreenHandler(Handler):
     # Draw the background! Let's say it never scrolls, for now.
     Game.screen.blit(self.background, (0,0))
 
-    # Render each sprite using our special 'RenderCamera' groups.
-    # For now, call the individual position update functions and blit manually
-    self.player.update(self.camera)
-
     # Testing
     Game.screen.blit(self.testSurface, (400 - self.camera.x, 300 - self.camera.y))
 #    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
 #    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
     self.tilesRenderCamera.draw(Game.screen, self.camera)
     self.playerRenderCamera.draw(Game.screen, self.camera)
-    #for tile in self.tiles:
-    #  Game.screen.blit(tile.image, (tile.x - self.camera.x, tile.y - self.camera.y))
+    self.enemyRenderCamera.draw(Game.screen, self.camera)
 
     # Show our hard work!
     pygame.display.flip()
 
-  # def _handleKeyDown(self,event):
-  #   if event.key == K_UP:
-  #     self.player.yvel -= 5
-  #   elif event.key == K_DOWN:
-  #     self.player.yvel += 5
-  #   elif event.key == K_LEFT:
-  #     self.player.xvel -= 10
-  #   elif event.key == K_RIGHT:
-  #     self.player.xvel += 10
-  #   elif event.key == K_SPACE:
-  #     if self.player.onGround:
-  #       self.player.yvel = -10
-
-  # def _handleKeyUp(self, event):
-  #   if event.key == K_UP:
-  #     self.player.yvel += 5
-  #   elif event.key == K_DOWN:
-  #     self.player.yvel -= 5
-  #   elif event.key == K_LEFT:
-  #     self.player.xvel += 10
-  #   elif event.key == K_RIGHT:
-  #     self.player.xvel -= 10
-
   def _handleKeyDown(self,event):
     if event.key == K_LEFT:
-      self.player.xaccel -= 1
+      self.player.xaccel -= X_ACCEL
     elif event.key == K_RIGHT:
-      self.player.xaccel += 1
+      self.player.xaccel += X_ACCEL
     elif event.key == K_SPACE:
       if self.player.onGround:
-        self.player.yvel = -10
+        self.player.jumping = True
+        self.player.yvel = JUMP
 
   def _handleKeyUp(self, event):
     if event.key == K_LEFT:
-      self.player.xaccel += 1
+      self.player.xaccel += X_ACCEL
     elif event.key == K_RIGHT:
-      self.player.xaccel -= 1
+      self.player.xaccel -= X_ACCEL
+    elif event.key == K_SPACE:
+      if self.player.jumping and self.player.yvel < -4: # Let the player cut a jump short.
+        self.player.yvel = JUMP/2
 
 
   def _handleInput(self):
@@ -280,109 +405,19 @@ class GameScreenHandler(Handler):
         elif event.type == KEYUP:
           self._handleKeyUp(event)
 
-  def _logic_movement(self):
-    # X first..
-    player_rect = self.player.rect
-    x_collision = False
-    x_sensors = (player_rect.topleft,
-      ((player_rect.midleft[0] + player_rect.topleft[0]) / 2, (player_rect.midleft[1] + player_rect.topleft[1]) / 2),
-      player_rect.midleft,
-      player_rect.bottomleft, 
-      ((player_rect.midleft[0] + player_rect.bottomleft[0]) / 2, (player_rect.midleft[1] + player_rect.bottomleft[1]) / 2),
-      player_rect.topright,
-      ((player_rect.midright[0] + player_rect.topright[0]) / 2, (player_rect.midright[1] + player_rect.topright[1]) / 2),
-      player_rect.midright, 
-      ((player_rect.midright[0] + player_rect.bottomright[0]) / 2, (player_rect.midright[1] + player_rect.bottomright[1]) / 2),
-      player_rect.bottomright)
-    for sensor in x_sensors:    
-      current_x = sensor[0]
-      current_y = sensor[1]
-      current_x_tile = current_x // TILE_WIDTH
-      current_y_tile = current_y // TILE_WIDTH
-      target_x = max(0, current_x + self.player.xvel)
-      target_x = min(current_x + self.player.xvel, self.xpixels - self.player.rect.width)
-      target_x_tile = target_x // TILE_WIDTH
-      if (target_x_tile, current_y_tile) in self.tiles:
-        # We've collided with something!
-        tile = self.tiles[(target_x_tile, current_y_tile)]
-        if math.copysign(1, self.player.xvel) > 0:
-          self.player.rect.right = tile.x - 1
-        else:
-          self.player.rect.left = tile.x + TILE_WIDTH + 1
-        x_collision = True
-        break
-    if not x_collision:
-      self.player.rect.x += self.player.xvel
-
-    # Y movement
-    player_rect = self.player.rect
-    y_collision = False
-    y_sensors = (player_rect.topleft, player_rect.midtop, player_rect.topright, player_rect.bottomleft, player_rect.midbottom, player_rect.bottomright)
-    for sensor in y_sensors:    
-      current_x, current_y = sensor
-      current_x_tile = current_x // TILE_WIDTH
-      current_y_tile = current_y // TILE_WIDTH
-      target_y = current_y + self.player.yvel
-      target_y = max(0, current_y + self.player.yvel)
-      target_y = min(current_y + self.player.yvel, self.ypixels - self.player.rect.height)
-      target_y_tile = target_y // TILE_WIDTH
-      if (current_x_tile, target_y_tile) in self.tiles:
-        # We've collided with something!
-        tile = self.tiles[(current_x_tile, target_y_tile)]
-        if math.copysign(1, self.player.yvel) > 0:
-          self.player.rect.bottom = tile.y - 1
-          self.player.onGround = True
-          # Friction adjustments, if player is not moving
-          # Without the break, we might apply two frictions from two tiles. The break means only one will
-          # be applied. This might seem a little odd if the blocks have different frictions.
-          keys = pygame.key.get_pressed()
-          if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
-            self.player.xvel -= math.copysign(min(abs(self.player.xvel), tile.friction), self.player.xvel)
-        else:
-          self.player.rect.top = tile.y + TILE_WIDTH + 1
-          self.player.yvel = 0
-        y_collision = True
-        break
-    if not y_collision:
-      self.player.rect.y += self.player.yvel
-      self.player.onGround = False
-
   def _logic(self):
-    # Handle damage and whatnot
+    # Handle player/enemy collisions
+    # self.player._logic_enemy_collisions(self.enemyRenderGroup)
     
-    # Gravity gonna gravitate.
-    self.player.yvel += self.GRAVITY
-    # Cap gravity's effect so we don't fall through things.
-    self.player.yvel = min(self.player.yvel,16)
+    
+    #self.player._logic_movement(self.tiles, (self.xpixels, self.ypixels))
+    #self.enemy._logic_movement(self.tiles, (self.xpixels, self.ypixels))
+
     # Movement by player.
-    self.player.xvel += self.player.xaccel
-    self.player.xvel = math.copysign(min(abs(self.player.xvel), 8),self.player.xvel)
-    # Movement by colliding with a tile.
-    # 
-    # First, find the surrounding tiles we have to check against.
-#    topleftTile = (int(math.floor(self.player.rect.x / TILE_WIDTH) - 1), int(math.floor(self.player.rect.y / TILE_WIDTH) - 1)) 
-#    bottomrightTile = (int(math.ceil((self.player.rect.x + self.player.rect.width) / TILE_WIDTH) + 1), int(math.ceil((self.player.rect.y + self.player.rect.height) / TILE_WIDTH) + 1))
-    # Check against them?!
-#    for x in xrange(topleftTile[0], bottomrightTile[0]):
-#      for y in xrange(topleftTile[1], bottomrightTile[1]):
-#        if (x, y) in self.tiles and pygame.sprite.collide_rect(self.player, self.tiles[(x,y)]):
-#          print("Collision:")
-#          print((x,y))
-          # Figure out the amount of dislocation required to put the player back in the right place.
-    self._logic_movement()
-    # Make sure the player isn't flying off the screen!
-
-    self.player.rect.x = max(0, self.player.rect.x)
-    self.player.rect.y = max(0, self.player.rect.y)
-    self.player.rect.x = min(self.player.rect.x, self.xpixels - self.player.rect.width)
-    self.player.rect.y = min(self.player.rect.y, self.ypixels - self.player.rect.height)
-
-
-    #print(topleftTile)
-    #print(bottomrightTile)
-
-
+    self.playerRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
     # Handle enemy movement
+    self.enemyRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
+
 
     # Adjust camera position
     self.camera.x = (self.player.rect.x + (self.player.rect.width / 2)) - (Game.xRes / 2)
@@ -448,7 +483,7 @@ def main():
   # Let's get in to that main loop!
   while Game.run:
     # Cap the frame rate.
-    clock.tick(60)
+    clock.tick(FPS)
 
     # For all the fading and whatnot!
     Game.screen.blit(blackground, (0,0))

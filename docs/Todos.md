@@ -21,3 +21,10 @@ Title Screen
 ------------
 * Buttons (New Game, Quit, etc.)
 * Pretty-ification
+
+Bugs?
+-----
+Touching the edge of a level won't reset the corresponding velocity. Consider 'ghost tiles' around the level.
+
+Bugs
+----
