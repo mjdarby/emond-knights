@@ -1,4 +1,4 @@
-import pygame, os, sys, copy, math
+import pygame, os, sys, copy, math, level
 from pygame.locals import *
 from threading import Thread
 
@@ -278,21 +278,9 @@ class Shazbot(Enemy):
 
     self._logic_movement(tiles, limits)
 
-class Tile(pygame.sprite.Sprite):
-  # X and Y are in tile world co-ordinates
-  def __init__(self, x, y):
-    super(Tile, self).__init__()
-    self.x = x * TILE_WIDTH
-    self.y = y * TILE_WIDTH
-    self.image = pygame.Surface((TILE_WIDTH,TILE_WIDTH))
-    self.image.fill((0,0,200))
-    self.rect = self.image.get_rect()
-    self.rect.topleft = (self.x, self.y)
-    self.friction = 0.5
-
 class Camera(pygame.rect.Rect):
   def __init__(self, position):
-    super(Camera, self).__init__(position)
+    super(Camera, self).__init__(position)    
 
 class GameScreenHandler(Handler):
   # The game proper, if you like. An instance of this is created for each level.
@@ -305,8 +293,31 @@ class GameScreenHandler(Handler):
   def __init__(self):
     # Vital level statistics: Height and width in tiles, and in
     # pixels, for the benefit of the camera and.. everything else.
+
+    # Tile stuff
+    self.tilesRenderCamera = RenderCamera()
+    self.tiles = dict()
+    # Load level file's tiles here.
+    load = True
     self.xtiles = 50
     self.ytiles = 30
+    if not load:
+      # Testing: Create a floor of tiles
+      for x in xrange(0, 50):
+        for y in xrange(25, 30):
+          self.tiles[(x,y)] = level.Tile(x,y)
+          self.tilesRenderCamera.add(self.tiles[(x,y)])
+    else:
+      # Load the level layout. This will be moved to the loading screen.
+      levelData = level.loadLevel(main_dir+"\\temp.dat")
+      self.xtiles = levelData.xtiles
+      self.ytiles = levelData.ytiles
+      for x in xrange(levelData.xtiles):
+        for y in xrange(levelData.ytiles):
+          if (x,y) in levelData.tiles:
+            self.tiles[(x,y)] = levelData.tiles[(x,y)]
+            self.tilesRenderCamera.add(self.tiles[(x,y)])
+
     self.xpixels = self.xtiles * TILE_WIDTH
     self.ypixels = self.ytiles * TILE_WIDTH
 
@@ -336,20 +347,6 @@ class GameScreenHandler(Handler):
     c = Shazbot()
     c.rect.x = 400
     self.enemyRenderCamera.add((a,b,c))
-
-    # Tile stuff
-    self.tilesRenderCamera = RenderCamera()
-    self.tiles = dict()
-    # Load level file's tiles here.
-    # Testing: Create a floor of tiles
-    for x in xrange(0, 50):
-      for y in xrange(25, 30):
-        self.tiles[(x,y)] = Tile(x,y)
-        self.tilesRenderCamera.add(self.tiles[(x,y)])
-
-    for x in xrange(20, 40):
-      self.tiles[(x,x)] = Tile(x,x)
-      self.tilesRenderCamera.add(self.tiles[(x,x)])      
 
     # Update loop stuff.
     self.logicOn = True
