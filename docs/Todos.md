@@ -5,6 +5,10 @@ Global
 ------
 * Error checking (should probably be doing this as I go along)
 
+Level designer
+--------------
+Exporting designed levels to .dat format!
+
 Game Screen
 -----------
 * Backgrounds
