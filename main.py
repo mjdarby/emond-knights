@@ -11,7 +11,6 @@ GRAVITY = 0.4
 JUMP = -10
 FPS = 60
 
-
 # Asset loading functions..
 
 # Helper functions
@@ -199,7 +198,8 @@ class Entity(pygame.sprite.Sprite):
       current_y_tile = current_y // TILE_WIDTH
       #target_y = max(0, current_y + self.xvel)
       #target_y = min(current_y + self.xvel, self.ypixels - self.rect.height)
-      target_y = current_y + self.yvel
+      # Bugfix note #1
+      target_y = math.ceil(current_y + self.yvel) if self.yvel > 0 else current_y + self.yvel
       target_y_tile = target_y // TILE_WIDTH
       if (current_x_tile, target_y_tile) in tiles:
         # We've collided with something!
@@ -217,7 +217,6 @@ class Entity(pygame.sprite.Sprite):
               self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
         else:
           self.rect.top = tile.y + TILE_WIDTH + 1
-          self.yvel = 0
         y_collision = True
         break
     if not y_collision:
@@ -227,6 +226,8 @@ class Entity(pygame.sprite.Sprite):
       if PERFECT_AIR_CONTROL:
         self.xvel = 0
       self.onGround = False
+    else:
+      self.yvel = 0
 
     # Make sure we're not flying off the screen!
     rect.x = max(0, rect.x)
@@ -369,6 +370,10 @@ class GameScreenHandler(Handler):
     self.playerRenderCamera.draw(Game.screen, self.camera)
     self.enemyRenderCamera.draw(Game.screen, self.camera)
 
+    font = pygame.font.Font(None, 16)
+    text = font.render("%f"%self.player.yvel, 1, (255,255,255))
+    Game.screen.blit(text, (0,0))
+
     # Show our hard work!
     pygame.display.flip()
 
@@ -389,7 +394,7 @@ class GameScreenHandler(Handler):
       self.player.xaccel -= X_ACCEL
     elif event.key == K_SPACE:
       if self.player.jumping and self.player.yvel < -4: # Let the player cut a jump short.
-        self.player.yvel = JUMP/2
+        self.player.yvel = self.player.yvel/2
 
 
   def _handleInput(self):
@@ -403,18 +408,10 @@ class GameScreenHandler(Handler):
           self._handleKeyUp(event)
 
   def _logic(self):
-    # Handle player/enemy collisions
-    # self.player._logic_enemy_collisions(self.enemyRenderGroup)
-    
-    
-    #self.player._logic_movement(self.tiles, (self.xpixels, self.ypixels))
-    #self.enemy._logic_movement(self.tiles, (self.xpixels, self.ypixels))
-
     # Movement by player.
     self.playerRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
     # Handle enemy movement
     self.enemyRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
-
 
     # Adjust camera position
     self.camera.x = (self.player.rect.x + (self.player.rect.width / 2)) - (Game.xRes / 2)
@@ -470,7 +467,6 @@ def main():
   newGame = Button("New Game", newButtonFunction)
   exitGame = Button("Exit Game", quitButtonFunction)
   Game.handler = LoadingScreenHandler(dummyLoadingFunction, TitleScreenHandler([newGame, exitGame]))
-  #Game.handler = GameScreenHandler()
 
   blackground = pygame.Surface(Game.screen.get_size())
   blackground = blackground.convert()

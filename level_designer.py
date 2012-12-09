@@ -15,7 +15,7 @@ class RenderCamera(pygame.sprite.RenderPlain):
     for s, r in self.spritedict.items():
       surface.blit(s.image, (s.rect.x - camera.x, s.rect.y - camera.y))
 
-def moved(x, y, tiles, fill):
+def changeTile(x, y, tiles, fill):
   tile = tiles[(x,y)]
   tile.clicked = fill
   tile.tiletype = 1 if fill else 0
@@ -65,12 +65,13 @@ def main():
       tiles[(x,y)] = tile
       tileRenderGroup.add(tile)
       if load: # Force a draw of all the tiles.
-        moved(x, y, tiles, tile.clicked)
+        changeTile(x, y, tiles, tile.clicked)
 
   newLevel = level.Level((levelWidth, levelHeight), tiles)
 
 
   paint = False
+  move = False
   fill = True
 
   while True:
@@ -85,20 +86,29 @@ def main():
           level.saveLevel(newLevel, main_dir + "/temp.dat")
           return
       elif event.type == MOUSEBUTTONDOWN:
-        x = (event.pos[0] + camera.x) // TILE_WIDTH
-        y = (event.pos[1] + camera.y) // TILE_WIDTH
-        paint = True
-        if (event.button == 1):
-          fill = True
-        elif (event.button == 3):
-          fill = False
-        moved(x, y, tiles, fill)
-      elif event.type == MOUSEMOTION and paint:
-        x = (event.pos[0] + camera.x) // TILE_WIDTH
-        y = (event.pos[1] + camera.y) // TILE_WIDTH
-        moved(x, y, tiles, fill)
+        if pygame.key.get_mods() & KMOD_LSHIFT:
+          move = True
+        else:
+          x = (event.pos[0] + camera.x) // TILE_WIDTH
+          y = (event.pos[1] + camera.y) // TILE_WIDTH
+          paint = True
+          if (event.button == 1):
+            fill = True
+          elif (event.button == 3):
+            fill = False
+          changeTile(x, y, tiles, fill)
+      elif event.type == MOUSEMOTION:
+        if paint:
+          x = (event.pos[0] + camera.x) // TILE_WIDTH
+          y = (event.pos[1] + camera.y) // TILE_WIDTH
+          changeTile(x, y, tiles, fill)
+        elif move:
+          relX, relY = event.rel
+          camera.x -= relX
+          camera.y -= relY
       elif event.type == MOUSEBUTTONUP:
         paint = False
+        move = False
       elif event.type == KEYDOWN:
         if event.key == K_s:
           camera.y += CAMERA_SPEED
