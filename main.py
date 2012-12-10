@@ -1,15 +1,10 @@
-import pygame, os, sys, copy, math, level
+import pygame, os, sys, copy, math, level, itertools
 from pygame.locals import *
 from threading import Thread
 
+from constants import *
+
 # Constants
-main_dir = os.path.split(os.path.abspath(__file__))[0]
-TILE_WIDTH = 20
-X_ACCEL = 0.5
-PERFECT_AIR_CONTROL = False # Disables or enables impulse jumping.
-GRAVITY = 0.4
-JUMP = -10
-FPS = 60
 
 # Asset loading functions..
 
@@ -18,6 +13,7 @@ def fadeToHandler(screen, speed, destinationHander):
   if screen.get_alpha() > 0:
     screen.set_alpha(screen.get_alpha() - speed)
   else:
+    Game.crossHandlerKeys = list(pygame.key.get_pressed())
     Game.handler = destinationHander
 
 class Handler:
@@ -44,22 +40,55 @@ class LoadingScreenHandler(Handler):
     background.blit(text, textpos)
     self.background = background
 
-    # Start the loading callback.
+    # Start the loading 'callback'.
     self.thread = Thread(target=callback)
     self.thread.start()
 
     self.nextHandler = nextHandler
 
-  def update(self):
+  def _draw(self):
     # Loading finished? Transition to next handler.
     if not self.thread.isAlive():
       fadeToHandler(self.background, 3, self.nextHandler)
     # Print a black screen that says 'Loading'!
     Game.screen.blit(self.background, (0,0))
-    pygame.display.flip()
+
+  def _handleInput(self):
     # Pump the event queue so we don't get any nasty surprises after loading.
     pygame.event.clear()
+
+  def update(self):
+    self._draw()
+    self._handleInput()
     return True
+
+## Pause Screen
+
+class PauseScreenHandler(Handler):
+  def __init__(self, returnHandler):
+    # Make the background stuff here.
+    background = pygame.Surface(Game.screen.get_size())
+    background = background.convert()
+    background.fill((0,0,0))
+    background.set_alpha(100)
+    font = pygame.font.Font(None, 36)
+    self.text = font.render("Paused, press any key to continue!", 1, (255,255,255))
+    self.textpos = self.text.get_rect(centerx=background.get_width()/2, centery=background.get_height()/2)
+    self.background = background
+    self.returnHandler = returnHandler
+
+  def update(self):
+    self.returnHandler._draw()
+    Game.screen.blit(self.background, (0,0))
+    Game.screen.blit(self.text, self.textpos)
+
+    for event in pygame.event.get():
+      if event.type == KEYDOWN:
+        Game.crossHandlerKeys = list(pygame.key.get_pressed())
+        Game.handler = self.returnHandler
+
+    return True
+
 
 ## Menu and Title Screen stuff
 
@@ -72,6 +101,7 @@ def quitButtonFunction():
   Game.run = False
 
 def newButtonFunction():
+  Game.crossHandlerKeys = list(pygame.key.get_pressed())
   Game.handler = GameScreenHandler()
 
 class TitleScreenHandler(Handler):
@@ -100,8 +130,6 @@ class TitleScreenHandler(Handler):
       text = font.render(button.text, 1, (255,255,255))
       textpos = text.get_rect(centerx=self.background.get_width()/2, centery=self.buttonOffset + idx * 60)
       Game.screen.blit(text, textpos)
-    # Handle any button presses here: Navigating menu, quitting game, selecting things.
-    pygame.display.flip()
 
   def _handleInput(self):
     for event in pygame.event.get():
@@ -146,7 +174,7 @@ class Entity(pygame.sprite.Sprite):
     self.yvel += GRAVITY
 
     # Cap speeds, so we don't fly through things!
-    self.xvel = math.copysign(min(abs(self.xvel), 8),self.xvel)
+    self.xvel = math.copysign(min(abs(self.xvel), 6),self.xvel)
     self.yvel = min(self.yvel,16)
 
     # X first..
@@ -214,7 +242,10 @@ class Entity(pygame.sprite.Sprite):
           if self.__class__.__name__ == "Player":
             keys = pygame.key.get_pressed()
             if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
-              self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
+              if not FRICTION_ON:
+                self.xvel = 0
+              else:
+                self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
         else:
           self.rect.top = tile.y + TILE_WIDTH + 1
         y_collision = True
@@ -295,9 +326,12 @@ class GameScreenHandler(Handler):
     # Vital level statistics: Height and width in tiles, and in
     # pixels, for the benefit of the camera and.. everything else.
 
-    # Tile stuff
+    # (Collidable) Tile stuff
     self.tilesRenderCamera = RenderCamera()
     self.tiles = dict()
+    # (Decorative) Tile Stuff
+    self.decorativeTilesRenderCamera = RenderCamera()
+    self.decorativeTiles = dict()
     # Load level file's tiles here.
     load = True
     self.xtiles = 50
@@ -315,9 +349,13 @@ class GameScreenHandler(Handler):
       self.ytiles = levelData.ytiles
       for x in xrange(levelData.xtiles):
         for y in xrange(levelData.ytiles):
-          if (x,y) in levelData.tiles:
-            self.tiles[(x,y)] = levelData.tiles[(x,y)]
+          if (x,y, T_COLLIDABLE) in levelData.tiles:
+            self.tiles[(x,y)] = levelData.tiles[(x,y, T_COLLIDABLE)]
             self.tilesRenderCamera.add(self.tiles[(x,y)])
+          if (x,y, T_DECORATIVE) in levelData.tiles:
+            self.decorativeTiles[(x,y)] = levelData.tiles[(x,y, T_DECORATIVE)]
+            self.decorativeTilesRenderCamera.add(self.decorativeTiles[(x,y)])
+
 
     self.xpixels = self.xtiles * TILE_WIDTH
     self.ypixels = self.ytiles * TILE_WIDTH
@@ -374,9 +412,6 @@ class GameScreenHandler(Handler):
     text = font.render("%f"%self.player.yvel, 1, (255,255,255))
     Game.screen.blit(text, (0,0))
 
-    # Show our hard work!
-    pygame.display.flip()
-
   def _handleKeyDown(self,event):
     if event.key == K_LEFT:
       self.player.xaccel -= X_ACCEL
@@ -386,8 +421,20 @@ class GameScreenHandler(Handler):
       if self.player.onGround:
         self.player.jumping = True
         self.player.yvel = JUMP
+    elif event.key == K_p:
+      # Consider abstracting this out for all handler changes.
+      # Bugfix Note 2
+      events = [pygame.event.Event(KEYUP, key=idx) for (idx, key) in enumerate(pygame.key.get_pressed()) if key]
+      for kEvent in events:
+       self._handleKeyUp(kEvent)
+      Game.crossHandlerKeys = list(pygame.key.get_pressed())
+      Game.handler = PauseScreenHandler(self)
 
   def _handleKeyUp(self, event):
+    if Game.crossHandlerKeys[event.key]:
+      Game.crossHandlerKeys[event.key] = 0
+      return
+
     if event.key == K_LEFT:
       self.player.xaccel += X_ACCEL
     elif event.key == K_RIGHT:
@@ -442,6 +489,8 @@ class Game:
   # Contains variables that are consistant across all handlers,
   # and indeed the current handler.
   handler = Handler()
+  # Bugfix note 2
+  crossHandlerKeys = list()
   
   # PyGame variables..
   screen = None
@@ -484,6 +533,9 @@ def main():
     # Run the current handler, which will update the screen, etc..
     if (Game.handler == None) or not Game.handler.update():
       break
+
+    # Show our hard work!
+    pygame.display.flip()
 
   pygame.quit()
 

@@ -20,8 +20,8 @@ def loadLevelEditor(filepath):
     ytiles = struct.unpack("<h", f.read(2))[0]
     for x in xrange(xtiles):
       for y in xrange(ytiles):
-        clicked = struct.unpack("<h", f.read(2))[0]
-        tiles[(x,y)] = EditorTile(x, y, clicked)
+        tiletype = struct.unpack("<h", f.read(2))[0]
+        tiles[(x,y, tiletype)] = EditorTile(x, y, tiletype)
     return Level((xtiles, ytiles), tiles)
 
 def loadLevel(filepath):
@@ -31,9 +31,11 @@ def loadLevel(filepath):
     ytiles = struct.unpack("<h", f.read(2))[0]
     for x in xrange(xtiles):
       for y in xrange(ytiles):
-        clicked = struct.unpack("<h", f.read(2))[0]
-        if clicked:
-          tiles[(x,y)] = Tile(x, y)
+        tiletype = struct.unpack("<h", f.read(2))[0]
+        if tiletype == T_COLLIDABLE:
+          tiles[(x,y, T_COLLIDABLE)] = CollidableTile(x, y)
+        elif tiletype == T_DECORATIVE:
+          tiles[(x,y, T_DECORATIVE)] = DecorativeTile(x, y)
     return Level((xtiles, ytiles), tiles)
 
 class Tile(pygame.sprite.Sprite):
@@ -48,13 +50,21 @@ class Tile(pygame.sprite.Sprite):
     self.rect.topleft = (self.x, self.y)
     self.friction = 0.5
 
+class CollidableTile(Tile):
+  def __init__(self, x, y):
+    super(CollidableTile, self).__init__(x,y)
+
+class DecorativeTile(Tile):
+  def __init__(self, x, y):
+    super(DecorativeTile, self).__init__(x,y)
+    self.image.fill((200,0,200))
+
 class EditorTile(Tile):
-  def __init__(self, x, y, clicked):
+  def __init__(self, x, y, tiletype):
     super(EditorTile,self).__init__(x, y)
     self.image.fill((255,255,255))
     pygame.draw.rect(self.image, (0,0,0), self.image.get_rect(), 1)
-    self.clicked = bool(clicked)
-    self.tiletype = 0 if not clicked else 1
+    self.tiletype = tiletype
 
 class Level:
   def __init__(self, dimensions, tiles):

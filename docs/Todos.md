@@ -7,7 +7,8 @@ Global
 
 Level designer
 --------------
-Exporting designed levels to .dat format!
+* Add capability to add different types of tiles: Physical, background, damaging
+* Need an interface for said tiles!
 
 Game Screen
 -----------
@@ -28,7 +29,11 @@ Title Screen
 
 Bugs?
 -----
-Touching the edge of a level won't reset the corresponding velocity. Consider 'ghost tiles' around the level.
+* Touching the edge of a level won't reset the corresponding velocity. Consider 'ghost tiles' around the level.
+* Funky camera when jumping near top of level
+* Pausing while moving requires the player to press the movement key again after unpausing.
 
 Bugs
 ----
+* Pressing and holding a key before pausing means they keyup event may not reach the game handler.
+** To fix, trigger all key-up events on pause.

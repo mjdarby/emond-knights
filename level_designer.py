@@ -17,10 +17,12 @@ class RenderCamera(pygame.sprite.RenderPlain):
 
 def changeTile(x, y, tiles, fill):
   tile = tiles[(x,y)]
-  tile.clicked = fill
-  tile.tiletype = 1 if fill else 0
-  if tile.clicked:
+  tile.tiletype = fill
+  if tile.tiletype == T_COLLIDABLE:
+    # TODO: Draw the appropriate graphic.
     tile.image.fill((0,0,255))
+  elif tile.tiletype == T_DECORATIVE:
+    tile.image.fill((200,0,200))
   else:
     tile.image.fill((255,255,255))
   pygame.draw.rect(tile.image, (0,0,0), tile.image.get_rect(), 1)
@@ -40,7 +42,7 @@ def main():
 
   # Are we loading an old file?
   Tkinter.Tk().withdraw()
-  filename = tkFileDialog.askopenfilename(**{'filetypes': [('Level dats', '.dat')]})
+  filename = tkFileDialog.askopenfilename(filetypes=[('Level dats', '.dat')])
 
   levelData = dict()
   tiles = dict()
@@ -59,20 +61,20 @@ def main():
     levelHeight = max(tkSimpleDialog.askinteger("Level Height", "Enter the level height in tiles (min 30):"), 30)
 
   tileRenderGroup = RenderCamera()
+
   for x in xrange(0,levelWidth):
     for y in xrange(0,levelHeight):
       tile = levelData.tiles[(x,y)] if load else level.EditorTile(x,y, False)
       tiles[(x,y)] = tile
       tileRenderGroup.add(tile)
       if load: # Force a draw of all the tiles.
-        changeTile(x, y, tiles, tile.clicked)
+        changeTile(x, y, tiles, tile.tiletype)
 
   newLevel = level.Level((levelWidth, levelHeight), tiles)
 
-
   paint = False
-  move = False
-  fill = True
+  moveCamera = False
+  tiletype = T_NO_TILE
 
   while True:
     clock.tick(60)
@@ -83,32 +85,34 @@ def main():
     for event in pygame.event.get():
       if event.type == QUIT or \
         (event.type == KEYDOWN and event.key == K_ESCAPE):
-          level.saveLevel(newLevel, main_dir + "/temp.dat")
+          level.saveLevel(newLevel, main_dir + "\\temp.dat")
           return
       elif event.type == MOUSEBUTTONDOWN:
         if pygame.key.get_mods() & KMOD_LSHIFT:
-          move = True
+          moveCamera = True
         else:
           x = (event.pos[0] + camera.x) // TILE_WIDTH
           y = (event.pos[1] + camera.y) // TILE_WIDTH
           paint = True
           if (event.button == 1):
-            fill = True
+            tiletype = T_COLLIDABLE
+          elif (event.button == 2):
+            tiletype = T_DECORATIVE
           elif (event.button == 3):
-            fill = False
-          changeTile(x, y, tiles, fill)
+            tiletype = T_NO_TILE
+          changeTile(x, y, tiles, tiletype)
       elif event.type == MOUSEMOTION:
         if paint:
           x = (event.pos[0] + camera.x) // TILE_WIDTH
           y = (event.pos[1] + camera.y) // TILE_WIDTH
-          changeTile(x, y, tiles, fill)
-        elif move:
+          changeTile(x, y, tiles, tiletype)
+        elif moveCamera:
           relX, relY = event.rel
           camera.x -= relX
           camera.y -= relY
       elif event.type == MOUSEBUTTONUP:
         paint = False
-        move = False
+        moveCamera = False
       elif event.type == KEYDOWN:
         if event.key == K_s:
           camera.y += CAMERA_SPEED
