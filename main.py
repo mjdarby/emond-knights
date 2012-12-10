@@ -1,4 +1,4 @@
-import pygame, os, sys, copy, math, level, itertools
+import pygame, os, sys, copy, math, level
 from pygame.locals import *
 from threading import Thread
 
@@ -349,13 +349,13 @@ class GameScreenHandler(Handler):
       self.ytiles = levelData.ytiles
       for x in xrange(levelData.xtiles):
         for y in xrange(levelData.ytiles):
-          if (x,y, T_COLLIDABLE) in levelData.tiles:
-            self.tiles[(x,y)] = levelData.tiles[(x,y, T_COLLIDABLE)]
+          if (x,y) in levelData.tiles:
+            self.tiles[(x,y)] = levelData.tiles[(x,y)]
             self.tilesRenderCamera.add(self.tiles[(x,y)])
-          if (x,y, T_DECORATIVE) in levelData.tiles:
-            self.decorativeTiles[(x,y)] = levelData.tiles[(x,y, T_DECORATIVE)]
+          if (x,y) in levelData.decorativeTiles:
+            print(x, y)
+            self.decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
             self.decorativeTilesRenderCamera.add(self.decorativeTiles[(x,y)])
-
 
     self.xpixels = self.xtiles * TILE_WIDTH
     self.ypixels = self.ytiles * TILE_WIDTH
@@ -392,18 +392,13 @@ class GameScreenHandler(Handler):
     self.inputOn = True
     self.specialOn = False
 
-    self.testSurface = pygame.Surface((100,100))
-    self.testSurface = self.testSurface.convert()
-    self.testSurface.fill((200,0,0))
-
   def _draw(self):
     # Draw the background! Let's say it never scrolls, for now.
     Game.screen.blit(self.background, (0,0))
 
-    # Testing
-    Game.screen.blit(self.testSurface, (400 - self.camera.x, 300 - self.camera.y))
 #    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
 #    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
+    self.decorativeTilesRenderCamera.draw(Game.screen, self.camera)
     self.tilesRenderCamera.draw(Game.screen, self.camera)
     self.playerRenderCamera.draw(Game.screen, self.camera)
     self.enemyRenderCamera.draw(Game.screen, self.camera)

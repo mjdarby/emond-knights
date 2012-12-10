@@ -15,16 +15,17 @@ class RenderCamera(pygame.sprite.RenderPlain):
     for s, r in self.spritedict.items():
       surface.blit(s.image, (s.rect.x - camera.x, s.rect.y - camera.y))
 
-def changeTile(x, y, tiles, fill):
+def changeTile(x, y, tiles, active):
   tile = tiles[(x,y)]
-  tile.tiletype = fill
-  if tile.tiletype == T_COLLIDABLE:
-    # TODO: Draw the appropriate graphic.
-    tile.image.fill((0,0,255))
-  elif tile.tiletype == T_DECORATIVE:
-    tile.image.fill((200,0,200))
+  tile.active = active
+  if tile.active:
+    if tile.tiletype == T_COLLIDABLE:
+      # TODO: Draw the appropriate graphic.
+      tile.image.fill((0,0,255))
+    elif tile.tiletype == T_DECORATIVE:
+      tile.image.fill((200,0,200))
   else:
-    tile.image.fill((255,255,255))
+    tile.image.fill((255,255,255, 0))
   pygame.draw.rect(tile.image, (0,0,0), tile.image.get_rect(), 1)
 
 def main():
@@ -46,40 +47,54 @@ def main():
 
   levelData = dict()
   tiles = dict()
+  decorativeTiles = dict()
+  layers = {T_COLLIDABLE: tiles, T_DECORATIVE: decorativeTiles}
+  layer = T_COLLIDABLE
   level_width = 0
   level_height = 0
+  tileRenderGroup = RenderCamera()
+  decorativeTileRenderGroup = RenderCamera()
 
   if len(filename) > 0:
     load = True
     levelData = level.loadLevelEditor(filename)
     levelWidth = levelData.xtiles
     levelHeight = levelData.ytiles
-    tiles = levelData.tiles
+    for x in xrange(levelWidth):
+      for y in xrange(levelHeight):
+        tiles[(x,y)] = levelData.tiles[(x,y)]
+        decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
   else:
     load = False
     levelWidth = max(tkSimpleDialog.askinteger("Level Width", "Enter the level width in tiles (min 40):"), 40)
     levelHeight = max(tkSimpleDialog.askinteger("Level Height", "Enter the level height in tiles (min 30):"), 30)
+    for x in xrange(levelWidth):
+      for y in xrange(levelHeight):
+        tile = level.EditorTile(x,y, False, T_COLLIDABLE)
+        tiles[(x,y)] = tile
+        decorativeTile = level.EditorTile(x, y, False, T_DECORATIVE)
+        decorativeTiles[(x,y)] = decorativeTile
 
-  tileRenderGroup = RenderCamera()
+  for pos, tile in tiles.iteritems():
+    changeTile(pos[0], pos[1], tiles, tile.active)
+    tileRenderGroup.add(tile)
 
-  for x in xrange(0,levelWidth):
-    for y in xrange(0,levelHeight):
-      tile = levelData.tiles[(x,y)] if load else level.EditorTile(x,y, False)
-      tiles[(x,y)] = tile
-      tileRenderGroup.add(tile)
-      if load: # Force a draw of all the tiles.
-        changeTile(x, y, tiles, tile.tiletype)
+  for pos, decorativeTile in decorativeTiles.iteritems():
+    changeTile(pos[0], pos[1], decorativeTiles, decorativeTile.active)
+    decorativeTileRenderGroup.add(decorativeTile)
 
-  newLevel = level.Level((levelWidth, levelHeight), tiles)
+  newLevel = level.Level((levelWidth, levelHeight), tiles, decorativeTiles)
 
   paint = False
   moveCamera = False
-  tiletype = T_NO_TILE
+  active = False
 
   while True:
     clock.tick(60)
     screen.blit(blackground, (0,0))
+    decorativeTileRenderGroup.draw(screen, camera)
     tileRenderGroup.draw(screen, camera)
+
     pygame.display.flip()
 
     for event in pygame.event.get():
@@ -95,17 +110,15 @@ def main():
           y = (event.pos[1] + camera.y) // TILE_WIDTH
           paint = True
           if (event.button == 1):
-            tiletype = T_COLLIDABLE
-          elif (event.button == 2):
-            tiletype = T_DECORATIVE
+            active = True
           elif (event.button == 3):
-            tiletype = T_NO_TILE
-          changeTile(x, y, tiles, tiletype)
+            active = False
+          changeTile(x, y, layers[layer], active)
       elif event.type == MOUSEMOTION:
         if paint:
           x = (event.pos[0] + camera.x) // TILE_WIDTH
           y = (event.pos[1] + camera.y) // TILE_WIDTH
-          changeTile(x, y, tiles, tiletype)
+          changeTile(x, y, layers[layer], active)
         elif moveCamera:
           relX, relY = event.rel
           camera.x -= relX
@@ -122,6 +135,10 @@ def main():
           camera.x -= CAMERA_SPEED
         elif event.key == K_d:
           camera.x += CAMERA_SPEED
+        elif event.key == K_1:
+          layer = T_COLLIDABLE
+        elif event.key == K_2:
+          layer = T_DECORATIVE
 
     camera.x = max(0, camera.x)
     camera.y = max(0, camera.y)

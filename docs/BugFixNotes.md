@@ -25,7 +25,7 @@ Bugfix Note 2
 -------------
 Before most handler changes:
 ```python
-Game.crossHandlerKes = list(pygame.key.get_pressed())
+Game.crossHandlerKeys = list(pygame.key.get_pressed())
 Game.handler = newHandler()
 
 In every handler's _HandleKeyUp function:
@@ -40,7 +40,6 @@ The game to pause screen handler change (and possibly before every handler chang
 events = [pygame.event.Event(KEYUP, key=idx) for (idx, key) in enumerate(pygame.key.get_pressed()) if key]
 for kEvent in events:
   self._handleKeyUp(kEvent)
-pygame.event.clear()
 Game.crossHandlerKeys = list(pygame.key.get_pressed())
 Game.handler = PauseScreenHandler(self)
 ```
