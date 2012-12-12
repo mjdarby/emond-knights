@@ -1,4 +1,4 @@
-import os, pygame
+import os, pygame, loading
 import struct
 
 from constants import *
@@ -53,20 +53,30 @@ def loadLevel(filepath):
 
 class Tile(pygame.sprite.Sprite):
   # X and Y are in tile world co-ordinates
+  image = 0
   def __init__(self, x, y):
     super(Tile, self).__init__()
     self.x = x * TILE_WIDTH
     self.y = y * TILE_WIDTH
-    self.image = pygame.Surface((TILE_WIDTH,TILE_WIDTH))
-    self.image = self.image.convert()
+    Tile.image = pygame.Surface((TILE_WIDTH,TILE_WIDTH))
+    Tile.image = self.image.convert()
     self.image.fill((0,0,200))
-    self.rect = self.image.get_rect()
-    self.rect.topleft = (self.x, self.y)
+    self.rect = pygame.rect.Rect(self.x, self.y, TILE_WIDTH, TILE_WIDTH)
     self.friction = 0.5
+
+  def loadImage(self):
+    Tile.image = pygame.Surface((TILE_WIDTH, TILE_WIDTH))
+    Tile.image = self.image.convert()
 
 class CollidableTile(Tile):
   def __init__(self, x, y):
     super(CollidableTile, self).__init__(x,y)
+    type(self).image, self.imageRect = loading.loadImage("test.png", -1)
+    self.imageRect = self.rect
+
+  def loadImage(self):
+    type(self).image = loading.loadImage("test.bmp")
+
 
 class DecorativeTile(Tile):
   def __init__(self, x, y):

@@ -1,4 +1,4 @@
-import pygame, os, sys, copy, math, level
+import pygame, os, sys, copy, math, level, loading
 from pygame.locals import *
 from threading import Thread
 
@@ -153,8 +153,18 @@ class TitleScreenHandler(Handler):
 ## Game stuff
 class RenderCamera(pygame.sprite.RenderPlain):
   def draw(self, surface, camera):
+    # Avoid drawing things that aren't on screen. TODO: Finish the logic, it's only half done.
     for s, r in self.spritedict.items():
-      surface.blit(s.image, (s.rect.x - camera.x, s.rect.y - camera.y))
+      if hasattr(s, "imageRect"):
+        if ((s.imageRect.x + s.imageRect.width) - camera.x > 0 and (s.imageRect.x < camera.x + camera.width)) \
+        or (((s.imageRect.y + s.imageRect.height) - camera.y > 0) and (s.imageRect.y < camera.y + camera.height)):
+          surface.blit(s.image, (s.imageRect.x - camera.x, s.imageRect.y - camera.y))
+      else:
+        if ((s.rect.x + s.rect.width) - camera.x > 0 and (s.rect.x < camera.x + camera.width)) \
+        or (((s.rect.y + s.rect.height) - camera.y > 0) and (s.rect.y < camera.y + camera.height)):
+          surface.blit(s.image, s.rect.move(-camera.x, -camera.y))
+      if DEBUG:
+        pygame.draw.rect(surface, (255,255,0), s.rect.move(-camera.x, -camera.y), 1)
 
 class Entity(pygame.sprite.Sprite):
   def __init__(self):
@@ -266,6 +276,10 @@ class Entity(pygame.sprite.Sprite):
     rect.x = min(rect.x, limits[0] - rect.width)
     rect.y = min(rect.y, limits[1] - rect.height)
 
+    # Update the position of our image.
+    if (hasattr(self, "imageRect")):
+      self.imageRect.topleft = (rect.x - self.imageXOffset, rect.y - self.imageYOffset)
+
   def update(self, tiles, limits):
     pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
 
@@ -275,6 +289,15 @@ class Player(Entity):
   def __init__(self):
     super(Player, self).__init__()
     self.jumping = False
+    self.image = pygame.Surface((40,60))
+    self.image.fill((0,200,0))
+    self.image, self.imageRect = loading.loadImage("testSprite.bmp", -1)
+    self.imageXOffset = 10
+    self.imageYOffset = 10
+    self.rect = pygame.rect.Rect(50, 50, 35, 70)
+
+  def _logic_animation(self):
+    pass
 
   def update(self, tiles, limits):
     self.xvel += self.xaccel
@@ -295,6 +318,9 @@ class Enemy(Entity):
 class Shazbot(Enemy):
   def __init__(self):
     super(Shazbot, self).__init__()
+    self.image, self.imageRect = loading.loadImage("patchy.bmp", -1)
+    self.imageRect = self.rect
+    self.imageXOffset, self.imageYOffset = 0, 0
     self.moveLeft = True
     self.timer = 0
 
@@ -353,17 +379,17 @@ class GameScreenHandler(Handler):
             self.tiles[(x,y)] = levelData.tiles[(x,y)]
             self.tilesRenderCamera.add(self.tiles[(x,y)])
           if (x,y) in levelData.decorativeTiles:
-            print(x, y)
             self.decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
             self.decorativeTilesRenderCamera.add(self.decorativeTiles[(x,y)])
 
+    # Required for keeping cameras and characters within level bounds.
     self.xpixels = self.xtiles * TILE_WIDTH
     self.ypixels = self.ytiles * TILE_WIDTH
 
     # Background. Right now, doesn't move and is static.
     background = pygame.Surface(Game.screen.get_size())
     background = background.convert()
-    background.fill((50,50,50))
+    background.fill((40,40,255))
     self.background = background
 
     # Camera stuff. In reality, camera will be centered on player, rather than 'moving'.
@@ -396,8 +422,6 @@ class GameScreenHandler(Handler):
     # Draw the background! Let's say it never scrolls, for now.
     Game.screen.blit(self.background, (0,0))
 
-#    Game.screen.blit(self.player.image, (self.player.rect.x - self.camera.x, self.player.rect.y - self.camera.y))
-#    Game.screen.blit(self.player.image, (self.player.rect.x, self.player.rect.y))
     self.decorativeTilesRenderCamera.draw(Game.screen, self.camera)
     self.tilesRenderCamera.draw(Game.screen, self.camera)
     self.playerRenderCamera.draw(Game.screen, self.camera)
@@ -478,8 +502,8 @@ class GameScreenHandler(Handler):
 
 class Game:
   # Resolution.
-  xRes = 800
-  yRes = 600
+  xRes = XRES
+  yRes = YRES
 
   # Contains variables that are consistant across all handlers,
   # and indeed the current handler.
