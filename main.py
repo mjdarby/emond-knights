@@ -1,4 +1,5 @@
-import pygame, os, sys, copy, math, level, loading
+import pygame, os, sys, copy, math
+import level, loading, entity, player
 from pygame.locals import *
 from threading import Thread
 
@@ -24,8 +25,39 @@ class Handler:
     return True
 
 ## Loading screen stuff
-def dummyLoadingFunction():
+def dummyLoadingFunction(loadingHandler):
   pass
+
+def level1LoadingFunction(loadingHandler):
+  # (Collidable) Tile stuff
+  tiles = dict()
+  # (Decorative) Tile Stuff
+  decorativeTiles = dict()
+  # Load the level layout. This will be moved to the loading screen.
+  levelData = level.loadLevel(main_dir+"\\temp.dat")
+  xtiles = levelData.xtiles
+  ytiles = levelData.ytiles
+  dimensions = (xtiles, ytiles)
+  for x in xrange(levelData.xtiles):
+    for y in xrange(levelData.ytiles):
+      if (x,y) in levelData.tiles:
+        tiles[(x,y)] = levelData.tiles[(x,y)]
+      if (x,y) in levelData.decorativeTiles:
+        decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
+
+  # Player stuff.
+  playerData = player.Player()
+  
+  # Enemy stuff.
+  a = Shazbot()
+  a.rect.x = 200
+  b = Shazbot()
+  b.rect.x = 300
+  c = Shazbot()
+  c.rect.x = 400
+  enemyData = (a,b,c)
+
+  loadingHandler.nextHandler = GameScreenHandler(dimensions, tiles, decorativeTiles, playerData, enemyData)
 
 class LoadingScreenHandler(Handler):
   def __init__(self, callback, nextHandler=None):
@@ -41,7 +73,7 @@ class LoadingScreenHandler(Handler):
     self.background = background
 
     # Start the loading 'callback'.
-    self.thread = Thread(target=callback)
+    self.thread = Thread(target=callback, args=(self,))
     self.thread.start()
 
     self.nextHandler = nextHandler
@@ -86,7 +118,6 @@ class PauseScreenHandler(Handler):
       if event.type == KEYDOWN:
         Game.crossHandlerKeys = list(pygame.key.get_pressed())
         Game.handler = self.returnHandler
-
     return True
 
 
@@ -102,7 +133,7 @@ def quitButtonFunction():
 
 def newButtonFunction():
   Game.crossHandlerKeys = list(pygame.key.get_pressed())
-  Game.handler = GameScreenHandler()
+  Game.handler = LoadingScreenHandler(level1LoadingFunction)
 
 class TitleScreenHandler(Handler):
   def __init__(self, buttons):
@@ -166,144 +197,7 @@ class RenderCamera(pygame.sprite.RenderPlain):
       if DEBUG:
         pygame.draw.rect(surface, (255,255,0), s.rect.move(-camera.x, -camera.y), 1)
 
-class Entity(pygame.sprite.Sprite):
-  def __init__(self):
-    super(Entity, self).__init__()
-    self.xvel = 0
-    self.yvel = 0
-    self.xaccel = 0
-    self.yaccel = 0
-    self.onGround = False
-    self.image = pygame.Surface((40,60))
-    self.image.fill((0,200,0))
-    self.rect = self.image.get_rect()
-    self.rect.topleft = (50, 50)
-
-  def _logic_movement(self, tiles, limits):
-    # Gravity gonna gravitate.
-    self.yvel += GRAVITY
-
-    # Cap speeds, so we don't fly through things!
-    self.xvel = math.copysign(min(abs(self.xvel), 6),self.xvel)
-    self.yvel = min(self.yvel,16)
-
-    # X first..
-    rect = self.rect
-    x_collision = False
-    x_sensors = (rect.topleft,
-      ((rect.midleft[0] + rect.topleft[0]) / 2, (rect.midleft[1] + rect.topleft[1]) / 2),
-      rect.midleft,
-      rect.bottomleft, 
-      ((rect.midleft[0] + rect.bottomleft[0]) / 2, (rect.midleft[1] + rect.bottomleft[1]) / 2),
-      rect.topright,
-      ((rect.midright[0] + rect.topright[0]) / 2, (rect.midright[1] + rect.topright[1]) / 2),
-      rect.midright, 
-      ((rect.midright[0] + rect.bottomright[0]) / 2, (rect.midright[1] + rect.bottomright[1]) / 2),
-      rect.bottomright)
-    for sensor in x_sensors:    
-      current_x = sensor[0]
-      current_y = sensor[1]
-      current_x_tile = current_x // TILE_WIDTH
-      current_y_tile = current_y // TILE_WIDTH
-      # We don't need these, I took "Reasoning about Programming" at university,
-      # and provided you can't move more pixels in one frame than there are in
-      # a tile, it's all good.
-      ##target_x = max(0, current_x + self.xvel)
-      ##target_x = min(current_x + self.xvel, self.xpixels - self.rect.width)
-      target_x = current_x + self.xvel
-      target_x_tile = target_x // TILE_WIDTH
-      if (target_x_tile, current_y_tile) in tiles:
-        # We've collided with something!
-        tile = tiles[(target_x_tile, current_y_tile)]
-        if math.copysign(1, self.xvel) > 0:
-          self.rect.right = tile.x - 1
-        else:
-          self.rect.left = tile.x + TILE_WIDTH + 1
-        x_collision = True
-        break
-    if not x_collision:
-      self.rect.x += self.xvel
-    else:
-      self.xvel = 0
-
-    # Y movement
-    rect = self.rect
-    y_collision = False
-    y_sensors = (rect.topleft, rect.midtop, rect.topright, rect.bottomleft, rect.midbottom, rect.bottomright)
-    for sensor in y_sensors:    
-      current_x, current_y = sensor
-      current_x_tile = current_x // TILE_WIDTH
-      current_y_tile = current_y // TILE_WIDTH
-      #target_y = max(0, current_y + self.xvel)
-      #target_y = min(current_y + self.xvel, self.ypixels - self.rect.height)
-      # Bugfix note #1
-      target_y = math.ceil(current_y + self.yvel) if self.yvel > 0 else current_y + self.yvel
-      target_y_tile = target_y // TILE_WIDTH
-      if (current_x_tile, target_y_tile) in tiles:
-        # We've collided with something!
-        tile = tiles[(current_x_tile, target_y_tile)]
-        if math.copysign(1, self.yvel) > 0:
-          self.rect.bottom = tile.y - 1
-          self.onGround = True
-          self.jumping = False
-          # Friction adjustments, only for the the player if they are not moving
-          # Without the break, we might apply two frictions from two tiles. The break means only one will
-          # be applied. This might seem a little odd if the blocks have different frictions.
-          if self.__class__.__name__ == "Player":
-            keys = pygame.key.get_pressed()
-            if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
-              if not FRICTION_ON:
-                self.xvel = 0
-              else:
-                self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
-        else:
-          self.rect.top = tile.y + TILE_WIDTH + 1
-        y_collision = True
-        break
-    if not y_collision:
-      self.rect.y += self.yvel
-      if self.yvel > 0 and self.yvel < 4 and self.xvel > 0.125:
-        self.xvel *= 0.96
-      if PERFECT_AIR_CONTROL:
-        self.xvel = 0
-      self.onGround = False
-    else:
-      self.yvel = 0
-
-    # Make sure we're not flying off the screen!
-    rect.x = max(0, rect.x)
-    rect.y = max(0, rect.y)
-    rect.x = min(rect.x, limits[0] - rect.width)
-    rect.y = min(rect.y, limits[1] - rect.height)
-
-    # Update the position of our image.
-    if (hasattr(self, "imageRect")):
-      self.imageRect.topleft = (rect.x - self.imageXOffset, rect.y - self.imageYOffset)
-
-  def update(self, tiles, limits):
-    pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
-
-
-class Player(Entity):
-  # X and Y are in pixel world co-ordinates
-  def __init__(self):
-    super(Player, self).__init__()
-    self.jumping = False
-    self.image = pygame.Surface((40,60))
-    self.image.fill((0,200,0))
-    self.image, self.imageRect = loading.loadImage("testSprite.bmp", -1)
-    self.imageXOffset = 10
-    self.imageYOffset = 10
-    self.rect = pygame.rect.Rect(50, 50, 35, 70)
-
-  def _logic_animation(self):
-    pass
-
-  def update(self, tiles, limits):
-    self.xvel += self.xaccel
-    self._logic_movement(tiles, limits)
-
-class Enemy(Entity):
+class Enemy(entity.Entity):
   def __init__(self):
     super(Enemy, self).__init__()
     self.image = pygame.Surface((40,40))
@@ -345,42 +239,26 @@ class GameScreenHandler(Handler):
   # Contains instances for the platforms you can jump on, enemies, etc.
   # Pass in the level information and whatnot.
 
-  # Game constants!
-  GRAVITY = 0.5
-
-  def __init__(self):
+  def __init__(self, dimensions, tiles, decorativeTiles, playerData, enemyData):
     # Vital level statistics: Height and width in tiles, and in
     # pixels, for the benefit of the camera and.. everything else.
 
     # (Collidable) Tile stuff
     self.tilesRenderCamera = RenderCamera()
-    self.tiles = dict()
+    self.tiles = tiles
     # (Decorative) Tile Stuff
     self.decorativeTilesRenderCamera = RenderCamera()
-    self.decorativeTiles = dict()
+    self.decorativeTiles = decorativeTiles
     # Load level file's tiles here.
-    load = True
-    self.xtiles = 50
-    self.ytiles = 30
-    if not load:
-      # Testing: Create a floor of tiles
-      for x in xrange(0, 50):
-        for y in xrange(25, 30):
-          self.tiles[(x,y)] = level.Tile(x,y)
+    self.xtiles = dimensions[0]
+    self.ytiles = dimensions[1]
+    # Load the level layout. This will be moved to the loading screen.
+    for x in xrange(self.xtiles):
+      for y in xrange(self.ytiles):
+        if (x,y) in self.tiles:
           self.tilesRenderCamera.add(self.tiles[(x,y)])
-    else:
-      # Load the level layout. This will be moved to the loading screen.
-      levelData = level.loadLevel(main_dir+"\\temp.dat")
-      self.xtiles = levelData.xtiles
-      self.ytiles = levelData.ytiles
-      for x in xrange(levelData.xtiles):
-        for y in xrange(levelData.ytiles):
-          if (x,y) in levelData.tiles:
-            self.tiles[(x,y)] = levelData.tiles[(x,y)]
-            self.tilesRenderCamera.add(self.tiles[(x,y)])
-          if (x,y) in levelData.decorativeTiles:
-            self.decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
-            self.decorativeTilesRenderCamera.add(self.decorativeTiles[(x,y)])
+        if (x,y) in self.decorativeTiles:
+          self.decorativeTilesRenderCamera.add(self.decorativeTiles[(x,y)])
 
     # Required for keeping cameras and characters within level bounds.
     self.xpixels = self.xtiles * TILE_WIDTH
@@ -397,21 +275,13 @@ class GameScreenHandler(Handler):
     self.camera = Camera(Game.screen.get_rect())
 
     # Player stuff.
-    self.player = Player()
+    self.player = playerData
     self.playerRenderCamera = RenderCamera()
     self.playerRenderCamera.add(self.player)
 
     # Enemy stuff.
-    self.enemy = Shazbot()
     self.enemyRenderCamera = RenderCamera()
-    self.enemyRenderCamera.add(self.enemy)
-    a = Shazbot()
-    a.rect.x = 200
-    b = Shazbot()
-    b.rect.x = 300
-    c = Shazbot()
-    c.rect.x = 400
-    self.enemyRenderCamera.add((a,b,c))
+    self.enemyRenderCamera.add(enemyData)
 
     # Update loop stuff.
     self.logicOn = True
