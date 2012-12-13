@@ -20,7 +20,7 @@ class Player(entity.Entity):
      self.jumping = False
      self.image, self.imageRect = loading.loadImage("testSprite.bmp", -1)
      self.imageXOffset = 10
-     self.imageYOffset = 10
+     self.imageYOffset = 5
      self.rect = pygame.rect.Rect(x, y, width, height)
      self.animations = animations
      self.currentAnimation = A_STANDING

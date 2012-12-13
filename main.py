@@ -46,7 +46,7 @@ def level1LoadingFunction(loadingHandler):
         decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
 
   # Player stuff.
-  animations = (loading.loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1),)
+  animations = (loading.loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1),)
   playerData = player.Player(50, 50, 35, 70, animations)
   
   # Enemy stuff.
@@ -401,7 +401,7 @@ def main():
   clock = pygame.time.Clock()
 
   # Get the PyGame variables in to Game.
-  Game.screen = pygame.display.set_mode((Game.xRes,Game.yRes))
+  Game.screen = pygame.display.set_mode((Game.xRes,Game.yRes), DOUBLEBUF)
   pygame.display.set_caption('Emond Knights')
 
   # Load the loading screen stuff, and set the handler.
