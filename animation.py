@@ -6,6 +6,7 @@ from constants import *
 class Animation:
   def __init__(self, frames, delay, loop):
     self.frames = frames
+    self.rect = frames[0].get_rect()
     self.numFrames = len(frames)
     self.delay = delay
     self.loop = loop

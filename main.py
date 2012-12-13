@@ -46,7 +46,8 @@ def level1LoadingFunction(loadingHandler):
         decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
 
   # Player stuff.
-  playerData = player.Player()
+  animations = (loading.loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1),)
+  playerData = player.Player(50, 50, 35, 70, animations)
   
   # Enemy stuff.
   a = Shazbot()
@@ -161,7 +162,6 @@ class TitleScreenHandler(Handler):
       text = font.render(button.text, 1, (255,255,255))
       textpos = text.get_rect(centerx=self.background.get_width()/2, centery=self.buttonOffset + idx * 60)
       Game.screen.blit(text, textpos)
-
   def _handleInput(self):
     for event in pygame.event.get():
         if event.type == QUIT or \
@@ -186,7 +186,10 @@ class RenderCamera(pygame.sprite.RenderPlain):
   def draw(self, surface, camera):
     # Avoid drawing things that aren't on screen. TODO: Finish the logic, it's only half done.
     for s, r in self.spritedict.items():
-      if hasattr(s, "imageRect"):
+      if hasattr(s, "animations"):
+        currentAnimation = s.animations[s.currentAnimation]
+        surface.blit(currentAnimation.frames[currentAnimation.currentFrame], s.rect.move(-s.imageXOffset - camera.x, -s.imageYOffset - camera.y))
+      elif hasattr(s, "imageRect"):
         if ((s.imageRect.x + s.imageRect.width) - camera.x > 0 and (s.imageRect.x < camera.x + camera.width)) \
         or (((s.imageRect.y + s.imageRect.height) - camera.y > 0) and (s.imageRect.y < camera.y + camera.height)):
           surface.blit(s.image, (s.imageRect.x - camera.x, s.imageRect.y - camera.y))
@@ -267,7 +270,7 @@ class GameScreenHandler(Handler):
     # Background. Right now, doesn't move and is static.
     background = pygame.Surface(Game.screen.get_size())
     background = background.convert()
-    background.fill((40,40,255))
+    background.fill((135,206,235))
     self.background = background
 
     # Camera stuff. In reality, camera will be centered on player, rather than 'moving'.
