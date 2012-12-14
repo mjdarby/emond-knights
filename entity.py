@@ -21,7 +21,7 @@ class Entity(pygame.sprite.Sprite):
     self.yvel += GRAVITY
 
     # Cap speeds, so we don't fly through things!
-    self.xvel = math.copysign(min(abs(self.xvel), 6),self.xvel)
+    self.xvel = math.copysign(min(abs(self.xvel), 5),self.xvel)
     self.yvel = min(self.yvel,16)
 
     # X first..

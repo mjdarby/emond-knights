@@ -46,7 +46,9 @@ def level1LoadingFunction(loadingHandler):
         decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
 
   # Player stuff.
-  animations = (loading.loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1),)
+  animations = (loading.loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1).clone(), \
+    loading.loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1).clone(), \
+    loading.loadAnimation(data_dir+"/player_jump.png", 56, 0.1*FPS, None, -1).clone())
   playerData = player.Player(50, 50, 35, 70, animations)
   
   # Enemy stuff.
@@ -73,6 +75,13 @@ class LoadingScreenHandler(Handler):
     background.blit(text, textpos)
     self.background = background
 
+    # For all the fading and whatnot!
+    blackground = pygame.Surface(Game.screen.get_size())
+    self.blackground = blackground.convert()
+    self.blackground.fill((0,0,0))
+    self.blackground.set_alpha(255)
+
+
     # Start the loading 'callback'.
     self.thread = Thread(target=callback, args=(self,))
     self.thread.start()
@@ -80,6 +89,7 @@ class LoadingScreenHandler(Handler):
     self.nextHandler = nextHandler
 
   def _draw(self):
+    Game.screen.blit(self.blackground, (0,0))
     # Loading finished? Transition to next handler.
     if not self.thread.isAlive():
       fadeToHandler(self.background, 3, self.nextHandler)
@@ -186,17 +196,20 @@ class RenderCamera(pygame.sprite.RenderPlain):
   def draw(self, surface, camera):
     # Avoid drawing things that aren't on screen. TODO: Finish the logic, it's only half done.
     for s, r in self.spritedict.items():
-      if hasattr(s, "animations"):
+      # hasattr is incredibly slow, we'll get rid of it soon.
+      # Note 1: Replaced by exception catching, which will be replaced itself.
+      try:
         currentAnimation = s.animations[s.currentAnimation]
-        surface.blit(currentAnimation.frames[currentAnimation.currentFrame], s.rect.move(-s.imageXOffset - camera.x, -s.imageYOffset - camera.y))
-      elif hasattr(s, "imageRect"):
-        if ((s.imageRect.x + s.imageRect.width) - camera.x > 0 and (s.imageRect.x < camera.x + camera.width)) \
-        or (((s.imageRect.y + s.imageRect.height) - camera.y > 0) and (s.imageRect.y < camera.y + camera.height)):
-          surface.blit(s.image, (s.imageRect.x - camera.x, s.imageRect.y - camera.y))
-      else:
-        if ((s.rect.x + s.rect.width) - camera.x > 0 and (s.rect.x < camera.x + camera.width)) \
-        or (((s.rect.y + s.rect.height) - camera.y > 0) and (s.rect.y < camera.y + camera.height)):
-          surface.blit(s.image, s.rect.move(-camera.x, -camera.y))
+        surface.blit(currentAnimation.frames[s.facingRight][currentAnimation.currentFrame], s.rect.move(-s.imageXOffset - camera.x, -s.imageYOffset - camera.y))
+      except AttributeError:
+        try:
+          if ((s.imageRect.x + s.imageRect.width) - camera.x > 0 and (s.imageRect.x < camera.x + camera.width)) \
+          or (((s.imageRect.y + s.imageRect.height) - camera.y > 0) and (s.imageRect.y < camera.y + camera.height)):
+            surface.blit(s.image, (s.imageRect.x - camera.x, s.imageRect.y - camera.y))
+        except AttributeError:
+          if ((s.rect.x + s.rect.width) - camera.x > 0 and (s.rect.x < camera.x + camera.width)) \
+          or (((s.rect.y + s.rect.height) - camera.y > 0) and (s.rect.y < camera.y + camera.height)):
+            surface.blit(s.image, s.rect.move(-camera.x, -camera.y))
       if DEBUG:
         pygame.draw.rect(surface, (255,255,0), s.rect.move(-camera.x, -camera.y), 1)
 
@@ -297,12 +310,8 @@ class GameScreenHandler(Handler):
 
     self.decorativeTilesRenderCamera.draw(Game.screen, self.camera)
     self.tilesRenderCamera.draw(Game.screen, self.camera)
-    self.playerRenderCamera.draw(Game.screen, self.camera)
     self.enemyRenderCamera.draw(Game.screen, self.camera)
-
-    font = pygame.font.Font(None, 16)
-    text = font.render("%f"%self.player.yvel, 1, (255,255,255))
-    Game.screen.blit(text, (0,0))
+    self.playerRenderCamera.draw(Game.screen, self.camera)
 
   def _handleKeyDown(self,event):
     if event.key == K_LEFT:
@@ -387,6 +396,7 @@ class Game:
   # PyGame variables..
   screen = None
   run = True
+  dirtyRects = list()
 
   # Example variables..
   lives = 0
@@ -401,7 +411,7 @@ def main():
   clock = pygame.time.Clock()
 
   # Get the PyGame variables in to Game.
-  Game.screen = pygame.display.set_mode((Game.xRes,Game.yRes), DOUBLEBUF)
+  Game.screen = pygame.display.set_mode((Game.xRes,Game.yRes), DOUBLEBUF | HWSURFACE)
   pygame.display.set_caption('Emond Knights')
 
   # Load the loading screen stuff, and set the handler.
@@ -409,27 +419,27 @@ def main():
   exitGame = Button("Exit Game", quitButtonFunction)
   Game.handler = LoadingScreenHandler(dummyLoadingFunction, TitleScreenHandler([newGame, exitGame]))
 
-  blackground = pygame.Surface(Game.screen.get_size())
-  blackground = blackground.convert()
-  blackground.fill((0,0,0))
-  blackground.set_alpha(255)
-
+  timer = 0
   # Let's get in to that main loop!
   while Game.run:
     # Cap the frame rate.
     clock.tick(FPS)
-
-    # For all the fading and whatnot!
-    Game.screen.blit(blackground, (0,0))
 
     # Run the current handler, which will update the screen, etc..
     if (Game.handler == None) or not Game.handler.update():
       break
 
     # Show our hard work!
-    pygame.display.flip()
+    pygame.display.update()
+    if timer == 60:
+      timer = 0
+      print clock.get_fps()
+    timer += 1
 
   pygame.quit()
 
+
+import cProfile as profile
 if __name__ == "__main__":
+  #profile.run('main()')
   main()
