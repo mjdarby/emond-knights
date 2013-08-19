@@ -77,7 +77,6 @@ class CollidableTile(Tile):
   def loadImage(self):
     type(self).image = loading.loadImage("test.bmp")
 
-
 class DecorativeTile(Tile):
   def __init__(self, x, y):
     super(DecorativeTile, self).__init__(x,y)

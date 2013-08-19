@@ -32,3 +32,6 @@ Level completed:
 Game over:
 * Player loses last life
 * Switch to title screen handler, no loading required?
+
+Loading a level
+===============

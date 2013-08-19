@@ -6,7 +6,7 @@ from constants import *
 class Animation:
   def __init__(self, frames, delay, loop):
     self.frames = list()
-    self.frames.append(frames)
+    self.frames.append(frames) #frames[A_RIGHT_FACING] = right frames, left facing is left frames
     self.frames.append([pygame.transform.flip(frame, True, False) for frame in frames])
     self.rect = frames[0].get_rect()
     self.numFrames = len(frames)
@@ -18,6 +18,8 @@ class Animation:
 
   def advance(self):
     self.timer += 1
+    if not self.animate:
+      return
     if self.timer == self.delay:
       self.timer = 0
       if self.currentFrame != self.numFrames:

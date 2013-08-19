@@ -37,3 +37,6 @@ Bugs
 ----
 * Pressing and holding a key before pausing means they keyup event may not reach the game handler.
 ** To fix, trigger all key-up events on pause.
+*** Avoided by using keystates, for most part
+
+* Can't pause on hitstun

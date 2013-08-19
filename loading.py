@@ -19,17 +19,19 @@ def loadAnimation(name, width, delay, loop, colorkey=None):
   for frameNo in xrange(imageRect.width // width):
     rect = pygame.rect.Rect(frameNo*width, 0, width, imageRect.height)
     frames.append(image.subsurface(rect))
-  print frames
   return animation.Animation(frames, delay, loop)
 
 def test():
   pygame.init()
   clock = pygame.time.Clock()
   screen = pygame.display.set_mode((400, 400))
-  animationData = loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1)
+  blackground = pygame.Surface(screen.get_size()).convert()
+  blackground.fill((0,0,0))
+  animationData = loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1)
   while True:
     clock.tick(60)
-    screen.blit(animationData.frames[1][animationData.currentFrame], (0,0))
+    screen.blit(blackground, (0,0))
+    screen.blit(animationData.frames[A_RIGHT_FACING][animationData.currentFrame], (0,0))
     animationData.advance()
     pygame.display.flip()
     for event in pygame.event.get():

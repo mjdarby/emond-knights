@@ -1,5 +1,7 @@
 import pygame, math
 
+import loading
+
 from pygame.locals import *
 from constants import *
 
@@ -8,6 +10,7 @@ class Entity(pygame.sprite.Sprite):
     super(Entity, self).__init__()
     self.xvel = 0
     self.yvel = 0
+    self.maxXVel = 5
     self.xaccel = 0
     self.yaccel = 0
     self.onGround = False
@@ -21,7 +24,7 @@ class Entity(pygame.sprite.Sprite):
     self.yvel += GRAVITY
 
     # Cap speeds, so we don't fly through things!
-    self.xvel = math.copysign(min(abs(self.xvel), 5),self.xvel)
+    self.xvel = math.copysign(min(math.fabs(self.xvel), self.maxXVel),self.xvel)
     self.yvel = min(self.yvel,16)
 
     # X first..
@@ -79,7 +82,7 @@ class Entity(pygame.sprite.Sprite):
       if (current_x_tile, target_y_tile) in tiles:
         # We've collided with something!
         tile = tiles[(current_x_tile, target_y_tile)]
-        if math.copysign(1, self.yvel) > 0:
+        if math.copysign(1, self.yvel) > 0: # are we on the ground?
           self.rect.bottom = tile.y - 1
           self.onGround = True
           self.jumping = False
@@ -88,21 +91,24 @@ class Entity(pygame.sprite.Sprite):
           # be applied. This might seem a little odd if the blocks have different frictions.
           if self.__class__.__name__ == "Player":
             keys = pygame.key.get_pressed()
-            if keys[K_LEFT] == keys[K_RIGHT]: # Which is to say, either neither key is pressed, or both are pressed.
+            # Bugfix note #3
+            # ... will be written why I figure out why adding 'self.hitStun' fixed the hitstun floating problem
+            if (keys[K_LEFT] is keys[K_RIGHT]) or self.hitStun > 0: # Which is to say, either neither key is pressed, or both are pressed.
               if not FRICTION_ON:
                 self.xvel = 0
               else:
-                self.xvel -= math.copysign(min(abs(self.xvel), tile.friction), self.xvel)
+                self.xvel -= math.copysign(min(math.fabs(self.xvel), tile.friction), self.xvel)
         else:
           self.rect.top = tile.y + TILE_WIDTH + 1
         y_collision = True
         break
     if not y_collision:
       self.rect.y += self.yvel
-      if self.yvel > 0 and self.yvel < 4 and self.xvel > 0.125:
-        self.xvel *= 0.96
+      if self.yvel > 0 and self.yvel < 4 and math.fabs(self.xvel) > 0.125:
+        self.xvel *= 0.98
       if PERFECT_AIR_CONTROL:
-        self.xvel = 0
+        if not self.__class__.__name__ == "Player" or self.hitStun == 0:
+          self.xvel = 0
       self.onGround = False
     else:
       self.yvel = 0
@@ -114,8 +120,122 @@ class Entity(pygame.sprite.Sprite):
     rect.y = min(rect.y, limits[1] - rect.height)
 
     # Update the position of our image.
-    if (hasattr(self, "imageRect")):
+    try:
       self.imageRect.topleft = (rect.x - self.imageXOffset, rect.y - self.imageYOffset)
+    except AttributeError:
+      pass
 
   def update(self, tiles, limits):
     pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
+
+class Player(Entity):
+  # X and Y are in pixel world co-ordinates
+  def __init__(self, x, y, width, height, animations):
+      super(Player, self).__init__()
+      # Health and damage stuff
+      self.hp = 50
+      self.hitStun = 0
+      self.hitInvul = 0
+
+      # Jumping stuff
+      self.jumping = False
+
+      # Hitbox
+      self.rect = pygame.rect.Rect(x, y, width, height)
+
+      # Animation stuff
+      self.imageXOffset = 10
+      self.imageYOffset = 5
+      self.animations = animations
+      self.currentAnimation = A_STANDING
+      self.facingRight = 0
+
+      # Movement stuff
+      self.maxXVel = 4
+
+  def update(self, tiles, limits):
+    # Movement and jumping stuff.
+    self.xvel += self.xaccel
+    self.animations[self.currentAnimation].advance()
+    # Different animation behaviour depending on hitstun.
+    # Need a better way of ordering/prioritising these..
+    if self.hitStun == 0:
+      # That is to say, don't change facing if they're standing still.
+      if (self.xvel > 0):
+        self.facingRight = 0
+      elif (self.xvel < 0):
+        self.facingRight = 1
+      if not self.onGround and self.yvel > 4:
+        self.currentAnimation = A_JUMPING
+        self.animations[self.currentAnimation].currentFrame = 2
+      elif not self.onGround and self.yvel > 0:
+        self.animations[self.currentAnimation].currentFrame = 0
+      elif not self.onGround and self.yvel < 0:
+        self.currentAnimation = A_JUMPING
+        self.animations[self.currentAnimation].currentFrame = 1
+      elif (self.xvel != 0):
+        self.currentAnimation = A_RUNNING
+      else:
+        self.currentAnimation = A_STANDING
+      if self.yvel == 0:
+        # If we're not moving, we can reset the jump animation.
+        self.animations[A_JUMPING].currentFrame = 0
+    else:
+      self.currentAnimation = A_HIT      
+    self._logic_movement(tiles, limits)
+    # Hit stun and hit invul.
+    self.hitStun -= 1
+    self.hitInvul -= 1
+    self.hitStun = max(0, self.hitStun)
+    self.hitInvul = max(0, self.hitInvul)
+
+  def enemyCollide(self, enemy):
+    self.hp -= enemy.collisionDamage
+    self.hitStun = FPS * HIT_STUN
+    self.hitInvul = FPS * HIT_INVUL
+    self.xvel = 5 if self.facingRight else -5 
+    self.yvel = -5
+    self.yaccel = 0
+    self.xaccel = 0
+
+    # Reset the hitstun animation
+    self.animations[A_HIT].currentFrame = 0
+
+class Enemy(Entity):
+  def __init__(self):
+    super(Enemy, self).__init__()
+    self.image = pygame.Surface((40,40))
+    self.image.fill((200,200,0))
+    self.rect = self.image.get_rect()
+    self.rect.topleft = (100, 100)
+
+    self.collisionDamage = 5
+
+  def update(self, tiles, limits):
+    print "hello"
+    pass
+
+class Shazbot(Enemy):
+  def __init__(self):
+    super(Shazbot, self).__init__()
+    self.animations = (loading.loadAnimation(data_dir+"/patchy.bmp", 40, 0.5*FPS, 0, -1).clone(),)
+    self.currentAnimation = A_STANDING
+    self.facingRight = 0
+    self.imageRect = self.rect
+    self.imageXOffset, self.imageYOffset = 0, 0
+    self.moveLeft = True
+    self.timer = 0
+
+  def update(self, tiles, limits):
+    if self.timer == FPS*0.5:
+      self.moveLeft = not self.moveLeft
+      self.timer = 0
+    if self.moveLeft:
+      self.xvel = -3
+    else:
+      self.xvel = 3
+    self.timer += 1
+    self.animations[self.currentAnimation].advance()
+
+    self._logic_movement(tiles, limits)
+    

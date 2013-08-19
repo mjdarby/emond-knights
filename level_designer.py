@@ -66,8 +66,8 @@ def main():
         decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
   else:
     load = False
-    levelWidth = max(tkSimpleDialog.askinteger("Level Width", "Enter the level width in tiles (min 40):"), 40)
-    levelHeight = max(tkSimpleDialog.askinteger("Level Height", "Enter the level height in tiles (min 30):"), 30)
+    levelWidth = max(tkSimpleDialog.askinteger("Level Width", "Enter the level width in tiles (min {0}):".format(XRES/TILE_WIDTH)), XRES/TILE_WIDTH)
+    levelHeight = max(tkSimpleDialog.askinteger("Level Height", "Enter the level height in tiles (min {0}):".format(YRES/TILE_WIDTH)), YRES/TILE_WIDTH)
     for x in xrange(levelWidth):
       for y in xrange(levelHeight):
         tile = level.EditorTile(x,y, False, T_COLLIDABLE)
@@ -100,7 +100,7 @@ def main():
     for event in pygame.event.get():
       if event.type == QUIT or \
         (event.type == KEYDOWN and event.key == K_ESCAPE):
-          level.saveLevel(newLevel, main_dir + "\\temp.dat")
+          level.saveLevel(newLevel, data_dir + "\\temp.dat")
           return
       elif event.type == MOUSEBUTTONDOWN:
         if pygame.key.get_mods() & KMOD_LSHIFT:
