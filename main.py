@@ -1,5 +1,5 @@
 import pygame, os, sys, math
-import handler, button
+import handler, button, levels
 from pygame.locals import *
 from game import Game
 
@@ -36,7 +36,10 @@ def main():
   # Load the loading screen stuff, and set the handler.
   newGame = button.Button("New Game", newButtonFunction)
   exitGame = button.Button("Exit Game", quitButtonFunction)
-  game.handler = handler.LoadingScreenHandler(dummyLoadingFunction, game, handler.TitleScreenHandler([newGame, exitGame], game))
+
+  # For now, load directly to game
+  #game.handler = handler.LoadingScreenHandler(dummyLoadingFunction, game, handler.TitleScreenHandler([newGame, exitGame], game))
+  game.handler = handler.LoadingScreenHandler(levels.level1LoadingFunction, game)
 
   timer = 0
   # Let's get in to that main loop!

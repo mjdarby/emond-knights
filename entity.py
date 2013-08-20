@@ -19,6 +19,14 @@ class Entity(pygame.sprite.Sprite):
     self.rect = self.image.get_rect()
     self.rect.topleft = (50, 50)
 
+    # Animation stuff
+    self.animations = None
+
+    # Provided the animations have been loaded, this will make a local clone for the
+    # new entity
+    self._cloneAnimations()
+
+  # Calculate the new position of the entity after one frame
   def _logic_movement(self, tiles, limits):
     # Gravity gonna gravitate.
     self.yvel += GRAVITY
@@ -107,7 +115,7 @@ class Entity(pygame.sprite.Sprite):
       if self.yvel > 0 and self.yvel < 4 and math.fabs(self.xvel) > 0.125:
         self.xvel *= 0.98
       if PERFECT_AIR_CONTROL:
-        if not self.__class__.__name__ == "Player" or self.hitStun == 0:
+        if not self.__class__.__name__ == "Player" or self.hitStun == 0: # You're falling backwards whether you like it or not if you're hit
           self.xvel = 0
       self.onGround = False
     else:
@@ -125,8 +133,17 @@ class Entity(pygame.sprite.Sprite):
     except AttributeError:
       pass
 
+  # For generic entities, do nothing on each frame.
   def update(self, tiles, limits):
     pass#  self.rect.topleft = (self.x - camera.x, self.y - camera.y)
+
+  # Helper class for animation, uses the fact that self.__class__.loadedAnimations
+  # will refer to the class-specific loadedAnimations of the caller.
+  # Cloned because we don't want everyone using the same animation!
+  def _cloneAnimations(self):
+    self.animations = [i.clone() for i in self.__class__.loadedAnimations]
+
+  loadedAnimations = None
 
 class Player(Entity):
   # X and Y are in pixel world co-ordinates
@@ -201,6 +218,15 @@ class Player(Entity):
     # Reset the hitstun animation
     self.animations[A_HIT].currentFrame = 0
 
+def createPlayer(x, y):
+  animations = [i.clone() for i in Player.loadedAnimations]
+  return Player(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, animations)
+
+class PlayerBullet(Entity):
+  def __init__():
+    super(PlayerBullet, self).__init__()
+
+
 class Enemy(Entity):
   def __init__(self):
     super(Enemy, self).__init__()
@@ -218,7 +244,6 @@ class Enemy(Entity):
 class Shazbot(Enemy):
   def __init__(self):
     super(Shazbot, self).__init__()
-    self.animations = (loading.loadAnimation(data_dir+"/patchy.bmp", 40, 0.5*FPS, 0, -1).clone(),)
     self.currentAnimation = A_STANDING
     self.facingRight = 0
     self.imageRect = self.rect

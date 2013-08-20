@@ -25,41 +25,10 @@ class Handler:
     return True
 
 ## Loading screen stuff
-def level1LoadingFunction(loadingHandler):
-  # (Collidable) Tile stuff
-  tiles = dict()
-  # (Decorative) Tile Stuff
-  decorativeTiles = dict()
-  # Load the level layout. This will be moved to the loading screen.
-  levelData = level.loadLevel(data_dir+"\\temp.dat")
-  xtiles = levelData.xtiles
-  ytiles = levelData.ytiles
-  dimensions = (xtiles, ytiles)
-  for x in xrange(levelData.xtiles):
-    for y in xrange(levelData.ytiles):
-      if (x,y) in levelData.tiles:
-        tiles[(x,y)] = levelData.tiles[(x,y)]
-      if (x,y) in levelData.decorativeTiles:
-        decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
-
-  # Player stuff.
-  animations = (loading.loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1).clone(), \
-    loading.loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1).clone(), \
-    loading.loadAnimation(data_dir+"/player_jump.png", 56, 0.1*FPS, None, -1).clone(), \
-    loading.loadAnimation(data_dir+"/player_hit.png", 56, 0.1*FPS, None, -1).clone()
-    )
-  playerData = entity.Player(50, 50, 35, 70, animations)
-  
-  # Enemy stuff.
-  enemyData = list()
-  for x in xrange(10):
-    animations = (loading.loadAnimation(data_dir+"/patchy.bmp", 40, FPS//3, 0, -1).clone(),)
-    enemy = entity.Shazbot()
-    enemy.rect.x = x * 500
-    enemyData.append(enemy)
-
-  loadingHandler.nextHandler = GameScreenHandler(dimensions, tiles, decorativeTiles, playerData, enemyData, loadingHandler.game)
-
+# Takes a callback, which it will start as a separate thread. It will spin the loading screen animations
+# until the thread is done, then switch to the next handler. If the next handler isn't specified at
+# creation of the loading screen handler, the callback should set it at the end. If it isn't set, the
+# program will close.
 class LoadingScreenHandler(Handler):
   def __init__(self, callback, game, nextHandler=None):
     self.game = game

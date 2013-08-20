@@ -38,3 +38,7 @@ def test():
         if event.type == QUIT or \
             (event.type == KEYDOWN and event.key == K_ESCAPE):
                 return
+
+if __name__ == "__main__":
+  #profile.run('main()')
+  test()
