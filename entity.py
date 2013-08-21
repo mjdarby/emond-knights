@@ -147,7 +147,7 @@ class Entity(pygame.sprite.Sprite):
 
 class Player(Entity):
   # X and Y are in pixel world co-ordinates
-  def __init__(self, x, y, width, height, animations):
+  def __init__(self, x, y, width, height):
       super(Player, self).__init__()
       # Health and damage stuff
       self.hp = 50
@@ -163,7 +163,6 @@ class Player(Entity):
       # Animation stuff
       self.imageXOffset = 10
       self.imageYOffset = 5
-      self.animations = animations
       self.currentAnimation = A_STANDING
       self.facingRight = 0
 
@@ -207,20 +206,25 @@ class Player(Entity):
     self.hitInvul = max(0, self.hitInvul)
 
   def enemyCollide(self, enemy):
-    self.hp -= enemy.collisionDamage
-    self.hitStun = FPS * HIT_STUN
-    self.hitInvul = FPS * HIT_INVUL
-    self.xvel = 5 if self.facingRight else -5 
-    self.yvel = -5
-    self.yaccel = 0
-    self.xaccel = 0
+    # TODO: Check that we SHOULD take damage: If collisionDamage is none or 0, don't
+    # knockback or hitstun.
+    if enemy.collisionDamage > 0:
+      # Take damage.
+      self.hp -= enemy.collisionDamage
+      # Go under hitstun.
+      self.hitStun = FPS * HIT_STUN
+      self.hitInvul = FPS * HIT_INVUL
+      # Knockback
+      self.xvel = 5 if self.facingRight else -5
+      self.yvel = -5
+      self.yaccel = 0
+      self.xaccel = 0
 
     # Reset the hitstun animation
     self.animations[A_HIT].currentFrame = 0
 
 def createPlayer(x, y):
-  animations = [i.clone() for i in Player.loadedAnimations]
-  return Player(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, animations)
+  return Player(x, y, PLAYER_WIDTH, PLAYER_HEIGHT)
 
 class PlayerBullet(Entity):
   def __init__():
