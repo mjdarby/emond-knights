@@ -5,11 +5,6 @@ from game import Game
 
 from constants import *
 
-# Constants
-
-# Asset loading functions..
-
-## Game stuff
 
 ## required for init
 def quitButtonFunction(game):
@@ -17,11 +12,10 @@ def quitButtonFunction(game):
 
 def newButtonFunction(game):
   game.crossHandlerKeys = list(pygame.key.get_pressed())
-  game.handler = handler.LoadingScreenHandler(handler.level1LoadingFunction, game)
+  game.handler = handler.LoadingScreenHandler(levels.level1LoadingFunction, game)
 
 def dummyLoadingFunction(loadingHandler):
   pass
-
 
 def main():
   # Initialise stuff: Pygame, the clock..
@@ -53,10 +47,13 @@ def main():
 
     # Show our hard work!
     pygame.display.flip()
-    if timer == 60:
-      timer = 0
-      print clock.get_fps()
-    timer += 1
+
+    # For now, even not in DEBUG mode, print the FPS:
+    if True or DEBUG:
+      if timer == 60:
+        timer = 0
+        print clock.get_fps()
+      timer += 1
 
   pygame.quit()
 

@@ -21,6 +21,7 @@ class Entity(pygame.sprite.Sprite):
 
     # Animation stuff
     self.animations = None
+    self.visible = True
 
     # Provided the animations have been loaded, this will make a local clone for the
     # new entity
@@ -41,14 +42,14 @@ class Entity(pygame.sprite.Sprite):
     x_sensors = (rect.topleft,
       ((rect.midleft[0] + rect.topleft[0]) / 2, (rect.midleft[1] + rect.topleft[1]) / 2),
       rect.midleft,
-      rect.bottomleft, 
+      rect.bottomleft,
       ((rect.midleft[0] + rect.bottomleft[0]) / 2, (rect.midleft[1] + rect.bottomleft[1]) / 2),
       rect.topright,
       ((rect.midright[0] + rect.topright[0]) / 2, (rect.midright[1] + rect.topright[1]) / 2),
-      rect.midright, 
+      rect.midright,
       ((rect.midright[0] + rect.bottomright[0]) / 2, (rect.midright[1] + rect.bottomright[1]) / 2),
       rect.bottomright)
-    for sensor in x_sensors:    
+    for sensor in x_sensors:
       current_x = sensor[0]
       current_y = sensor[1]
       current_x_tile = current_x // TILE_WIDTH
@@ -78,7 +79,7 @@ class Entity(pygame.sprite.Sprite):
     rect = self.rect
     y_collision = False
     y_sensors = (rect.topleft, rect.midtop, rect.topright, rect.bottomleft, rect.midbottom, rect.bottomright)
-    for sensor in y_sensors:    
+    for sensor in y_sensors:
       current_x, current_y = sensor
       current_x_tile = current_x // TILE_WIDTH
       current_y_tile = current_y // TILE_WIDTH
@@ -94,7 +95,7 @@ class Entity(pygame.sprite.Sprite):
           self.rect.bottom = tile.y - 1
           self.onGround = True
           self.jumping = False
-          # Friction adjustments, only for the the player if they are not moving
+          # Friction adjustments, only for the the player if they are not moving and on the ground
           # Without the break, we might apply two frictions from two tiles. The break means only one will
           # be applied. This might seem a little odd if the blocks have different frictions.
           if self.__class__.__name__ == "Player":
@@ -150,7 +151,7 @@ class Player(Entity):
   def __init__(self, x, y, width, height):
       super(Player, self).__init__()
       # Health and damage stuff
-      self.hp = 50
+      self.hp = PLAYER_HP
       self.hitStun = 0
       self.hitInvul = 0
 
@@ -197,13 +198,17 @@ class Player(Entity):
         # If we're not moving, we can reset the jump animation.
         self.animations[A_JUMPING].currentFrame = 0
     else:
-      self.currentAnimation = A_HIT      
+      self.currentAnimation = A_HIT
     self._logic_movement(tiles, limits)
     # Hit stun and hit invul.
     self.hitStun -= 1
     self.hitInvul -= 1
     self.hitStun = max(0, self.hitStun)
     self.hitInvul = max(0, self.hitInvul)
+    if (self.hitInvul == 0) or (self.hitInvul % 4 == 0): # Blink every 4 frames
+      self.visible = True
+    else:
+      self.visible = False
 
   def enemyCollide(self, enemy):
     # TODO: Check that we SHOULD take damage: If collisionDamage is none or 0, don't
@@ -211,6 +216,7 @@ class Player(Entity):
     if enemy.collisionDamage > 0:
       # Take damage.
       self.hp -= enemy.collisionDamage
+      self.hp = max(0, self.hp)
       # Go under hitstun.
       self.hitStun = FPS * HIT_STUN
       self.hitInvul = FPS * HIT_INVUL
@@ -229,7 +235,6 @@ def createPlayer(x, y):
 class PlayerBullet(Entity):
   def __init__():
     super(PlayerBullet, self).__init__()
-
 
 class Enemy(Entity):
   def __init__(self):
@@ -267,4 +272,3 @@ class Shazbot(Enemy):
     self.animations[self.currentAnimation].advance()
 
     self._logic_movement(tiles, limits)
-    

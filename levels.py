@@ -1,5 +1,5 @@
 import pygame
-import level, loading, entity, handler
+import level, loading, entity, handler, ui
 
 from rendercamera import *
 from camera import *
@@ -30,7 +30,7 @@ def level1LoadingFunction(loadingHandler):
       if (x,y) in levelData.decorativeTiles:
         decorativeTiles[(x,y)] = levelData.decorativeTiles[(x,y)]
 
-  # Player stuff. 
+  # Player stuff.
   entity.Player.loadedAnimations = (loading.loadAnimation(data_dir+"/player_stand.png", 56, 0.1*FPS, 0, -1), \
     loading.loadAnimation(data_dir+"/player_stand_run.png", 56, 0.1*FPS, 0, -1), \
     loading.loadAnimation(data_dir+"/player_jump.png", 56, 0.1*FPS, None, -1), \
@@ -46,4 +46,15 @@ def level1LoadingFunction(loadingHandler):
     enemy.rect.x = x * 500
     enemyData.append(enemy)
 
-  loadingHandler.nextHandler = handler.GameScreenHandler(dimensions, tiles, decorativeTiles, playerData, enemyData, loadingHandler.game)
+  # Ui stuff
+  ui.UiHealthBarSegment.loadedAnimations = (loading.loadAnimation(data_dir+"/healthbarsegment_top.png", 30, 1, 0, (0, 255, 24)), \
+    loading.loadAnimation(data_dir+"/healthbarsegment_top_empty.png", 30, 1, 0, (0, 255, 24)), \
+    loading.loadAnimation(data_dir+"/healthbarsegment_middle.png", 30, 1, 0, (0, 255, 24)), \
+    loading.loadAnimation(data_dir+"/healthbarsegment_middle_empty.png", 30, 1, 0, (0, 255, 24)), \
+    loading.loadAnimation(data_dir+"/healthbarsegment_bottom.png", 30, 1, 0, (0, 255, 24)), \
+    loading.loadAnimation(data_dir+"/healthbarsegment_bottom_empty.png", 30, 1, 0, (0, 255, 24)))
+  uiData = list()
+  uiHealthBar = ui.UiHealthBar(playerData, playerData.hp, 30, 60)
+  uiData.append(uiHealthBar)
+
+  loadingHandler.nextHandler = handler.GameScreenHandler(dimensions, tiles, decorativeTiles, playerData, enemyData, uiData, loadingHandler.game)

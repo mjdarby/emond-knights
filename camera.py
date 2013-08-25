@@ -5,4 +5,4 @@ from constants import *
 
 class Camera(pygame.rect.Rect):
   def __init__(self, position):
-    super(Camera, self).__init__(position)    
+    super(Camera, self).__init__(position)

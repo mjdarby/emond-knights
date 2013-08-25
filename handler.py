@@ -152,7 +152,7 @@ class GameScreenHandler(Handler):
   # Contains instances for the platforms you can jump on, enemies, etc.
   # Pass in the level information and whatnot.
 
-  def __init__(self, dimensions, tiles, decorativeTiles, playerData, enemyData, game):
+  def __init__(self, dimensions, tiles, decorativeTiles, playerData, enemyData, uiData, game):
     # Vital level statistics: Height and width in tiles, and in
     # pixels, for the benefit of the camera and.. everything else.
     self.game = game
@@ -196,6 +196,14 @@ class GameScreenHandler(Handler):
     self.enemyRenderCamera = RenderCamera()
     self.enemyRenderCamera.add(enemyData)
 
+    # UI stuff.
+    self.uiRenderUi = RenderUi()
+    self.uiRenderUi.add(uiData)
+    # Make sure the UI segments also get rendered and updated
+    for ui in uiData:
+      for segment in ui.segments:
+        self.uiRenderUi.add(segment)
+
     # Update loop stuff.
     self.logicOn = True
     self.inputOn = True
@@ -208,9 +216,8 @@ class GameScreenHandler(Handler):
     self.decorativeTilesRenderCamera.draw(self.game.screen, self.camera)
     self.tilesRenderCamera.draw(self.game.screen, self.camera)
     self.enemyRenderCamera.draw(self.game.screen, self.camera)
-    # Hack for invul blink.. Super wasteful
-    if self.player.hitInvul == 0 or self.player.hitInvul % 4 == 0: # Blink every 4 frames
-      self.playerRenderCamera.draw(self.game.screen, self.camera)
+    self.playerRenderCamera.draw(self.game.screen, self.camera)
+    self.uiRenderUi.draw(self.game.screen)
 
   def _handleKeyDown(self,event):
 #    if event.key == K_LEFT:
@@ -279,10 +286,12 @@ class GameScreenHandler(Handler):
                 self._handleKeyUp(event)
 
   def _logic(self):
-    # Movement by player.
+    # Actions by player
     self.playerRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
-    # Handle enemy movement
+    # Enemy actions
     self.enemyRenderCamera.update(self.tiles, (self.xpixels, self.ypixels))
+    # UI updates
+    self.uiRenderUi.update()
 
     # Collisions!
     # TODO: Only check against things more local to the player.

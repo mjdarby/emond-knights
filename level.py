@@ -30,7 +30,7 @@ def loadLevelEditor(filepath):
     for x in xrange(xtiles):
       for y in xrange(ytiles):
         active = struct.unpack("<h", f.read(2))[0]
-        decorativeTiles[(x, y)] = EditorTile(x, y, active, T_DECORATIVE)    
+        decorativeTiles[(x, y)] = EditorTile(x, y, active, T_DECORATIVE)
     return Level((xtiles, ytiles), tiles, decorativeTiles)
 
 def loadLevel(filepath):
@@ -63,6 +63,7 @@ class Tile(pygame.sprite.Sprite):
     self.image.fill((0,0,200))
     self.rect = pygame.rect.Rect(self.x, self.y, TILE_WIDTH, TILE_WIDTH)
     self.friction = 0.5
+    self.visible = True
 
   def loadImage(self):
     Tile.image = pygame.Surface((TILE_WIDTH, TILE_WIDTH))

@@ -45,5 +45,3 @@ Attributes
 Function
 --------
 * advance(): Increments self.timer. If self.timer == self.delay, set self.timer to 0, increment self.currentFrame. If self.currentFrame is now equal to self.numFrames, zero it.
-
-* draw(o): 
